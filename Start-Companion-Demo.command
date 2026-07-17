@@ -49,11 +49,15 @@ source .venv/bin/activate
 if ! python -c "import uvicorn, fastapi" >/dev/null 2>&1; then
   echo "First run: installing dependencies (one time, ~1 minute)..."
   python -m pip install --upgrade pip >/dev/null 2>&1
-  python -m pip install -r requirements.txt || {
-    echo "Dependency install failed. In Terminal, from this folder, try:"
-    echo "    source .venv/bin/activate && pip install -r requirements.txt"
-    read -n 1 -s -r -p "Press any key to close..."; exit 1
-  }
+  if ! python -m pip install -r requirements.txt; then
+    echo "Full install hit a snag; installing the core packages needed to run..."
+    python -m pip install "fastapi>=0.110" "uvicorn>=0.27" "python-multipart>=0.0.9" \
+                          "pyyaml>=6.0" "httpx>=0.27" || {
+      echo "Dependency install failed. In Terminal, from this folder, try:"
+      echo "    source .venv/bin/activate && pip install -r requirements.txt"
+      read -n 1 -s -r -p "Press any key to close..."; exit 1
+    }
+  fi
 fi
 
 # --- 3. Evidence run so /evidence works (one time) ----------
