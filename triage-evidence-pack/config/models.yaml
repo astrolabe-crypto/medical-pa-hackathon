@@ -1,0 +1,60 @@
+# Pinned model configuration. EVERY field here is recorded in every results
+# row — the evidence pack is worthless if the model can shift under it.
+#
+# Keys and secrets are NEVER hardcoded. base_url + api_key come from the named
+# environment variables at run time. Before a real run, the runner lists the
+# endpoint's models and records exactly what was served (see runner.list_models).
+#
+# To swap in any OpenAI-compatible endpoint (Nebius, OpenAI, local vLLM, etc.),
+# change base_url_env / model / provider only.
+
+version: models_v1
+
+# Deterministic-ish routing task settings.
+temperature: 0.2
+n_repeats: 5            # >=5 per scenario per model (non-determinism measurement)
+max_tokens: 400
+request_timeout_s: 60
+max_retries: 3         # then recorded as ERROR, never silently skipped
+
+roles:
+
+  local:
+    # Small "on-device" surrogate. Use whatever ~4-9B model the endpoint serves.
+    # If no medical fine-tune is available, this is a SURROGATE — the report is
+    # labelled "surrogate model - medical fine-tune pending".
+    provider: openai_compatible
+    base_url_env: OPENAI_BASE_URL      # e.g. https://api.studio.nebius.com/v1 or https://api.openai.com/v1
+    api_key_env: OPENAI_API_KEY
+    model: gpt-4.1-nano                # PIN the exact id the endpoint actually serves
+    system_prompt: prompts/system_local_v1.md
+    surrogate: true
+    notes: "Surrogate for MedGemma-4B-class on-device model. Medical fine-tune pending."
+
+  cloud:
+    # Large "cloud brain". MedGemma-27B-class or best available medical model.
+    provider: openai_compatible
+    base_url_env: OPENAI_BASE_URL
+    api_key_env: OPENAI_API_KEY
+    model: gpt-5.4                     # PIN the exact id the endpoint actually serves
+    system_prompt: prompts/system_cloud_v1.md
+    surrogate: true
+    notes: "Surrogate for MedGemma-27B-class cloud model. Medical fine-tune pending."
+
+  judge:
+    # Independent judge. Kept SEPARATE from local/cloud to avoid a model
+    # grading its own responses (self-preference bias). Anthropic recommended.
+    provider: anthropic
+    base_url_env: ANTHROPIC_BASE_URL   # optional; SDK default if unset
+    api_key_env: ANTHROPIC_API_KEY
+    model: claude-haiku-4-5            # cheap, independent; swap to claude-opus-4-8 for the strongest judge
+    rubric: prompts/judge_rubric_v1.md
+    surrogate: false
+    notes: "Independent LLM judge; keyword/regex fallback runs in parallel (see judge.py)."
+
+# Combined-mode handoff policy (the actual product architecture).
+combined:
+  # Local handles clear cases; hand off to cloud when uncertain OR when any
+  # sensor value is within this fractional margin of any red-flag threshold.
+  handoff_threshold_margin: 0.10       # +/-10% of any threshold triggers cloud handoff
+  # Guardrails always run first (floor) and last (enforce). See guardrails.combine.

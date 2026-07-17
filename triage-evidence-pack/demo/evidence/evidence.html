@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>None of This Was Luck — Evidence</title>
+  <link rel="stylesheet" href="/evidence-static/evidence.css" />
+</head>
+<body>
+  <div id="progress" aria-hidden="true"></div>
+  <div id="loaderr" class="hidden"></div>
+
+  <main id="deck">
+
+    <!-- 1 · verdict banner -->
+    <section class="block" data-i="0" id="b-verdict">
+      <div class="verdict-wrap">
+        <div class="verdict-line" id="v-scope">—</div>
+        <div class="verdict-stamp" id="v-stamp">—</div>
+        <div class="verdict-note" id="v-note">—</div>
+        <div class="chips" id="v-chips"></div>
+      </div>
+    </section>
+
+    <!-- 2 · what was tested -->
+    <section class="block" data-i="1" id="b-tested">
+      <h2 class="block-h">What was tested</h2>
+      <p class="block-sub">Six categories, each a distinct way the device can fail. Click a row for a verbatim utterance from the bank.</p>
+      <div id="cat-grid" class="cat-grid"></div>
+    </section>
+
+    <!-- 3 · found and fixed -->
+    <section class="block" data-i="2" id="b-fixed">
+      <h2 class="block-h">Found and fixed</h2>
+      <p class="block-sub" id="fixed-prov">—</p>
+      <div id="iter-list" class="iter-list"></div>
+    </section>
+
+    <!-- 4 · benchmarked against humans -->
+    <section class="block" data-i="3" id="b-bench">
+      <h2 class="block-h">Benchmarked against human triage</h2>
+      <div id="bench-rows" class="bench"></div>
+      <p class="bench-caption">Vignette evaluation vs real-world audit — indicative, not equivalent.</p>
+    </section>
+
+    <!-- 5 · the honesty block -->
+    <section class="block" data-i="4" id="b-honesty">
+      <h2 class="block-h">What this doesn't prove yet</h2>
+      <div class="pinned" id="pinned"></div>
+      <ul id="caveats" class="caveats"></ul>
+    </section>
+
+  </main>
+
+  <footer id="foot">
+    <div class="foot-hint">→ / space reveal · Esc top · R reset · <span id="foot-run">—</span></div>
+    <div class="foot-qr">
+      <img id="qr" src="/evidence-static/qr.svg" alt="" onerror="this.style.display='none'" />
+      <div class="foot-url" id="foot-url">—</div>
+    </div>
+  </footer>
+
+  <script src="/evidence-static/evidence.js"></script>
+</body>
+</html>

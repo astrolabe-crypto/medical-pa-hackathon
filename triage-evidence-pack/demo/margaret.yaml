@@ -1,0 +1,24 @@
+# Margaret — the demo patient. Static for Piece 1; Piece 3 will make this
+# dynamic (structure it so a file-watch or endpoint swap is trivial).
+#
+# The device "knows" the sensor_data silently (home scales, cuff, oximeter);
+# symptoms come from what she says (extracted at route time). Her weight trend
+# shows >2 kg gain over 3 days, so the guardrail floor triggers on weight alone;
+# with "sleeping in the chair" -> orthopnoea extracted, it reaches HF red-zone.
+
+patient_context:
+  name: Margaret
+  age: 74
+  sex: F
+  conditions: [heart_failure_nyha2, hypertension]
+  medications: [furosemide, ramipril, bisoprolol]
+  baselines:
+    weight_kg: 78.4
+    sbp: 132
+    dbp: 84
+
+sensor_data:
+  weight_trend_kg: [78.4, 79.1, 80.2, 81.0]   # 4 daily readings, +2.6 kg over 3 days
+  days: 4
+  # symptoms are intentionally empty here — they are extracted from her utterance
+  symptoms: []

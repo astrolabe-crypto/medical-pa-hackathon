@@ -1,0 +1,16 @@
+results/*
+!results/.gitkeep
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+
+# demo: never commit escalation logs or recorded voice; keep the synthetic fallback
+demo/escalations.jsonl
+demo/escalations-*.jsonl
+demo/world/margaret_state.yaml
+demo/replays/*.webm
+demo/replays/*.wav
+demo/replays/*.m4a
+!demo/replays/_fallback_unreachable.mp3
+!demo/replays/_proactive_*.mp3

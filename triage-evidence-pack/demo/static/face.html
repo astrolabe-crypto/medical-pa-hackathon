@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1C1820">
+<title>Companion</title>
+<style>
+  :root{
+    --bg:#1C1820;         /* warm charcoal-plum, bedside dark */
+    --bg-raise:#272130;
+    --glow:#F2B879;       /* lamplight amber */
+    --glow-deep:#E09A55;
+    --ink:#F5EFE6;        /* warm cream */
+    --ink-dim:#A99FA8;
+    --calm:#A8C4B2;       /* sage — listening */
+    --urgent:#E8734D;     /* escalation */
+    --unit:8px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;overflow:hidden}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:-apple-system,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+    display:flex;flex-direction:column;align-items:center;
+    user-select:none;-webkit-user-select:none;
+  }
+
+  /* ---------- clock ---------- */
+  header{ padding:calc(var(--unit)*5) 0 0; text-align:center;cursor:pointer; }
+  #time{
+    font-size:clamp(40px,11vw,64px);
+    font-weight:300;letter-spacing:.02em;
+    font-variant-numeric:tabular-nums;color:var(--ink);
+  }
+  #date{ font-size:17px;color:var(--ink-dim); margin-top:calc(var(--unit)*0.5);letter-spacing:.04em; }
+
+  /* ---------- face ---------- */
+  main{
+    flex:1;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;
+    width:100%;min-height:0;
+  }
+  #face{display:block;width:min(88vw,420px);height:auto;}
+
+  #listenDots{
+    display:flex;gap:10px;height:20px;align-items:center;
+    opacity:0;transition:opacity .4s ease;
+  }
+  #listenDots.on{opacity:1}
+  #listenDots span{
+    width:8px;height:8px;border-radius:50%;
+    background:var(--calm);
+    animation:dotPulse 1.4s ease-in-out infinite;
+  }
+  #listenDots span:nth-child(2){animation-delay:.2s}
+  #listenDots span:nth-child(3){animation-delay:.4s}
+  @keyframes dotPulse{
+    0%,100%{transform:scale(1);opacity:.45}
+    50%{transform:scale(1.5);opacity:1}
+  }
+
+  /* ---------- caption ---------- */
+  #captionWrap{
+    min-height:120px;width:min(88vw,460px);
+    text-align:center;padding:0 calc(var(--unit)*2);
+    display:flex;flex-direction:column;align-items:center;gap:calc(var(--unit)*1.5);
+  }
+  #stateLabel{
+    font-size:13px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--calm);min-height:16px;
+    opacity:0;transition:opacity .4s ease;
+  }
+  #stateLabel.on{opacity:1}
+  #caption{
+    font-size:clamp(19px,5.2vw,24px);
+    line-height:1.45;font-weight:400;color:var(--ink);
+    min-height:2.9em;
+  }
+  #caption.dim{color:var(--ink-dim)}
+  #statusChip{
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:15px;color:var(--ink-dim);
+    background:var(--bg-raise);border:1px solid #3A3242;
+    padding:8px 16px;border-radius:999px;
+    opacity:0;transform:translateY(6px);
+    transition:opacity .5s ease,transform .5s ease;
+  }
+  #statusChip.on{opacity:1;transform:none}
+  #statusChip .tick{
+    width:18px;height:18px;border-radius:50%;
+    background:var(--calm);color:var(--bg);
+    display:inline-flex;align-items:center;justify-content:center;
+    font-size:12px;font-weight:700;
+  }
+
+  /* ---------- escalation banner ---------- */
+  #banner{
+    margin-top:calc(var(--unit)*1);max-width:min(92vw,660px);
+    background:rgba(224,154,85,0.14);border:1px solid var(--glow-deep);
+    color:var(--ink);font-size:15px;line-height:1.45;
+    padding:10px 18px;border-radius:12px;text-align:center;
+  }
+  #banner.hidden{display:none}
+
+  /* ---------- presenter hint bar ---------- */
+  footer{
+    width:100%;display:flex;justify-content:center;
+    padding:calc(var(--unit)*1) calc(var(--unit)*2) calc(var(--unit)*3);
+    transition:opacity .35s ease;
+  }
+  footer.hidden{opacity:0;pointer-events:none}
+  #hint{ font-size:12.5px;color:var(--ink-dim);opacity:.6;letter-spacing:.02em;text-align:center; }
+  #hint b{color:var(--ink-dim);font-weight:700}
+
+  /* ---------- chrome toggle ---------- */
+  #chromeToggle{
+    position:fixed;top:14px;right:14px;
+    width:44px;height:44px;border-radius:50%;
+    background:transparent;border:none;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;z-index:25;
+  }
+  #chromeToggle::after{ content:"";width:6px;height:6px;border-radius:50%;background:var(--ink-dim);opacity:.5; }
+  #chromeToggle:focus-visible{outline:2px solid var(--glow);outline-offset:2px;border-radius:50%}
+
+  /* ---------- ambient world label (faint) ---------- */
+  #ambient{ position:fixed;bottom:12px;left:14px;font-size:12px;color:var(--ink-dim);opacity:.45;letter-spacing:.03em;z-index:10; }
+
+  /* ---------- debug overlay (D) ---------- */
+  #debug{
+    position:fixed;top:12px;left:12px;z-index:20;
+    font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;
+    color:var(--ink-dim);background:rgba(0,0,0,.5);border:1px solid #3A3242;
+    border-radius:10px;padding:10px 12px;line-height:1.7;
+  }
+  #debug.hidden{display:none}
+  #debug b{color:var(--ink);font-weight:600}
+
+  /* ---------- world overlay (W): auditable-maths sparklines ---------- */
+  #world{
+    position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:15;
+    width:min(90vw,560px);height:auto;border-radius:16px;
+    border:1px solid #3A3242;background:rgba(0,0,0,.55);
+  }
+  #world.hidden{display:none}
+
+  /* ---------- typed-input fallback (T) ---------- */
+  #type-input{
+    position:fixed;left:50%;bottom:calc(var(--unit)*12);transform:translateX(-50%);z-index:30;
+    width:min(88vw,460px);font:inherit;font-size:18px;
+    color:var(--ink);background:var(--bg-raise);border:1px solid var(--glow-deep);
+    border-radius:12px;padding:12px 16px;outline:none;
+  }
+
+  @media (prefers-reduced-motion:reduce){
+    #listenDots span{animation:none;opacity:.8}
+    #statusChip{transition:opacity .3s ease}
+  }
+</style>
+</head>
+<body>
+
+<header id="clock" title="Tap for fullscreen">
+  <div id="time">–:–</div>
+  <div id="date"></div>
+</header>
+
+<main id="stage">
+  <canvas id="face" width="840" height="640" aria-label="Companion face"></canvas>
+  <div id="listenDots" aria-hidden="true"><span></span><span></span><span></span></div>
+</main>
+
+<div id="captionWrap">
+  <div id="stateLabel"></div>
+  <div id="caption" class="dim" aria-live="polite"></div>
+  <div id="statusChip"><span class="tick">✓</span><span id="statusText"></span></div>
+</div>
+
+<div id="banner" class="hidden"></div>
+
+<footer id="controls">
+  <div id="hint">Hold <b>Space</b> to talk · <b>1–4</b> scenarios · <b>A</b> days pass · <b>W</b> the maths · <b>D</b> debug · <b>H</b> hide</div>
+</footer>
+
+<div id="ambient"></div>
+<div id="debug" class="hidden">
+  <div>adapter <b id="d-adapter">—</b></div>
+  <div>stt <b id="d-stt">—</b></div>
+  <div>guard <b id="d-guard">—</b></div>
+  <div>tier <b id="d-tier">—</b></div>
+  <div>route <b id="d-route">—</b></div>
+  <div>tts <b id="d-tts">—</b></div>
+</div>
+<canvas id="world" class="hidden" width="560" height="300"></canvas>
+
+<button id="chromeToggle" aria-label="Hide controls"></button>
+
+<script>
+/* =====================================================================
+   Companion FACE — wired to the live demo backend.
+
+   Same server, same pipeline as the orb kiosk (`/`): this page just renders
+   the device as a warm face instead of an orb. All routing/world/escalation
+   logic lives in the backend and the Gate 0 harness — this is presentation
+   only. Networking mirrors static/app.js; if you change the client contract,
+   change it in both (or fold them together later).
+   ===================================================================== */
+(function(){
+  "use strict";
+
+  const params = new URLSearchParams(location.search);
+  const NAME = params.get("name") || "Margaret";
+  const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const FALLBACK_LINE = "I can't reach your care team right now. If this feels urgent, please call 111.";
+
+  /* ---------------- DOM ---------------- */
+  const timeEl    = document.getElementById("time");
+  const dateEl    = document.getElementById("date");
+  const captionEl = document.getElementById("caption");
+  const stateLabel= document.getElementById("stateLabel");
+  const listenDots= document.getElementById("listenDots");
+  const statusChip= document.getElementById("statusChip");
+  const statusText= document.getElementById("statusText");
+  const bannerEl  = document.getElementById("banner");
+  const controls  = document.getElementById("controls");
+  const debugEl   = document.getElementById("debug");
+  const ambientEl = document.getElementById("ambient");
+  const stage     = document.getElementById("stage");
+
+  /* ---------------- clock ---------------- */
+  function tickClock(){
+    const d = new Date();
+    timeEl.textContent = d.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+    dateEl.textContent = d.toLocaleDateString([], {weekday:"long", day:"numeric", month:"long"});
+  }
+  tickClock(); setInterval(tickClock, 10000);
+
+  /* ---------------- config ---------------- */
+  let MODE = "mock", ADAPTER = "mock";
+  let REPLAYS = {};
+  fetch("/api/config").then(r => r.json()).then(cfg => {
+    MODE = cfg.mode; ADAPTER = cfg.adapter; REPLAYS = cfg.replays || {};
+    setDebug({ adapter: `${cfg.adapter} (${cfg.mode})` });
+  }).catch(() => {});
+
+  /* ===================================================================
+     FACE RENDERER  (canvas — carried over from the standalone mockup)
+     States it understands: rest | listen | think | speak | comfort.
+     `speaking` (mouth) is driven separately by speak(), synced to real audio.
+     =================================================================== */
+  const canvas = document.getElementById("face");
+  const ctx = canvas.getContext("2d");
+  const W = 840, H = 640;
+
+  function fitCanvas(){
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    canvas.width  = W * dpr;
+    canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  fitCanvas();
+  addEventListener("resize", fitCanvas);
+
+  let state = "rest";
+  let speaking = false;          // mouth animating
+  let speakingUntil = 0;         // hard safety cap; the speaking flag is authoritative
+
+  const cur = { eyeH:150, tilt:0, smile:18, mouthOpen:0, glowA:0.55, gazeAmt:1, hueCalm:0, urgent:0 };
+
+  function targets(){
+    switch(state){
+      case "listen":  return { eyeH:170, tilt:0,    smile:14, glowA:0.62, gazeAmt:0.3, hueCalm:1, urgent:0 };
+      case "think":   return { eyeH:118, tilt:0,    smile:14, glowA:0.60, gazeAmt:0.6, hueCalm:0, urgent:0 };
+      case "speak":   return { eyeH:150, tilt:0,    smile:20, glowA:0.68, gazeAmt:0.4, hueCalm:0, urgent:0 };
+      case "comfort": return { eyeH:160, tilt:0.14, smile:4,  glowA:0.74, gazeAmt:0.1, hueCalm:0, urgent:1 };
+      default:        return { eyeH:150, tilt:0,    smile:18, glowA:0.55, gazeAmt:1,   hueCalm:0, urgent:0 };
+    }
+  }
+
+  /* blinking */
+  let lid = 0, blinkAt = performance.now() + 2500, blinkPhase = -1;
+  const BLINK_MS = 220;
+  function updateBlink(now){
+    if(blinkPhase < 0 && now >= blinkAt) blinkPhase = now;
+    if(blinkPhase >= 0){
+      const t = (now - blinkPhase) / BLINK_MS;
+      if(t >= 1){ blinkPhase = -1; lid = 0; blinkAt = now + 2500 + Math.random()*3500; }
+      else lid = Math.sin(Math.PI * t);
+    }
+  }
+
+  /* synthetic speech cadence for the mouth */
+  function mouthAmp(now){
+    if(!speaking) return 0;
+    if(now > speakingUntil){ speaking = false; return 0; }
+    const t = now / 1000;
+    const a = 0.55 + 0.45 * Math.sin(t*11.3) * Math.sin(t*5.1 + 1.2);
+    const pause = (Math.sin(t*1.6) > 0.85) ? 0.15 : 1;
+    return Math.max(0, a * pause);
+  }
+
+  const ease = (c, t, k) => c + (t - c) * k;
+
+  function draw(now){
+    updateBlink(now);
+    const tgt = targets();
+    const k = reducedMotion ? 0.2 : 0.06;
+    for(const key of ["eyeH","tilt","smile","glowA","gazeAmt","hueCalm","urgent"]) cur[key] = ease(cur[key], tgt[key], k);
+    cur.mouthOpen = ease(cur.mouthOpen, mouthAmp(now), 0.35);
+
+    ctx.clearRect(0, 0, W, H);
+    const cx = W/2, cy = H/2 - 20;
+
+    /* breathing lamplight halo — the signature. warms toward amber, and a touch
+       toward the urgent hue when concerned (subtle, never alarming). */
+    const breathe = reducedMotion ? 0 : Math.sin(now/1000 * (state === "comfort" ? 0.45 : 0.7)) * 0.5 + 0.5;
+    const glowR = 300 + breathe * 26;
+    const g = ctx.createRadialGradient(cx, cy, 40, cx, cy, glowR);
+    const glowCol = cur.hueCalm > 0.5 ? "168,196,178"
+                  : cur.urgent > 0.5  ? mixCol(242,184,121, 232,115,77, cur.urgent)
+                  : "242,184,121";
+    g.addColorStop(0, `rgba(${glowCol},${(cur.glowA*0.32).toFixed(3)})`);
+    g.addColorStop(0.55, `rgba(${glowCol},${(cur.glowA*0.10).toFixed(3)})`);
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
+    /* gaze drift (idle life) */
+    const gx = reducedMotion ? 0 : Math.sin(now/4200) * 10 * cur.gazeAmt;
+    const gy = reducedMotion ? 0 : Math.sin(now/6100 + 2) * 5 * cur.gazeAmt;
+
+    /* eyes */
+    const eyeW = 96;
+    const eyeH = cur.eyeH * (1 - lid * 0.92);
+    const sep  = 128;
+    const eyeY = cy - 40 + gy;
+    ctx.save();
+    ctx.shadowColor = `rgba(${glowCol},0.65)`;
+    ctx.shadowBlur = 34;
+    ctx.fillStyle = "#FFCE94";
+    for(const side of [-1, 1]){
+      ctx.save();
+      ctx.translate(cx + side*sep + gx, eyeY);
+      ctx.rotate(side * cur.tilt);
+      const r = Math.min(eyeW, eyeH) * 0.48;
+      roundRect(ctx, -eyeW/2, -eyeH/2, eyeW, eyeH, r);
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.restore();
+
+    /* mouth */
+    const mY = cy + 128 + gy*0.6, mW = 88;
+    ctx.save();
+    ctx.translate(cx + gx*0.8, mY);
+    ctx.strokeStyle = "#FFCE94";
+    ctx.lineWidth = 11; ctx.lineCap = "round";
+    ctx.shadowColor = `rgba(${glowCol},0.5)`; ctx.shadowBlur = 22;
+    const open = cur.mouthOpen;
+    if(open > 0.06){
+      const h = 10 + open * 34;
+      ctx.beginPath(); ctx.ellipse(0, 0, mW*0.42, h, 0, 0, Math.PI*2); ctx.stroke();
+    } else {
+      ctx.beginPath(); ctx.moveTo(-mW/2, 0); ctx.quadraticCurveTo(0, cur.smile, mW/2, 0); ctx.stroke();
+    }
+    ctx.restore();
+
+    requestAnimationFrame(draw);
+  }
+  function mixCol(r1,g1,b1, r2,g2,b2, t){
+    return `${Math.round(r1+(r2-r1)*t)},${Math.round(g1+(g2-g1)*t)},${Math.round(b1+(b2-b1)*t)}`;
+  }
+  function roundRect(c, x, y, w, h, r){
+    r = Math.min(r, w/2, h/2);
+    c.beginPath();
+    c.moveTo(x+r, y);
+    c.arcTo(x+w, y,   x+w, y+h, r);
+    c.arcTo(x+w, y+h, x,   y+h, r);
+    c.arcTo(x,   y+h, x,   y,   r);
+    c.arcTo(x,   y,   x+w, y,   r);
+    c.closePath();
+  }
+  requestAnimationFrame(draw);
+
+  /* ---------------- face state + caption ---------------- */
+  function setFace(next){
+    state = next;
+    const listening = next === "listen";
+    listenDots.classList.toggle("on", listening);
+    if(listening){
+      stateLabel.textContent = "Listening";
+      stateLabel.style.color = "var(--calm)";
+      stateLabel.classList.add("on");
+    } else {
+      stateLabel.classList.remove("on");
+    }
+  }
+
+  let typeTimer = null;
+  function setCaption(text, dim=false){
+    clearTimeout(typeTimer);
+    captionEl.textContent = text || "";
+    captionEl.classList.toggle("dim", dim);
+  }
+  function typeCaption(text){
+    clearTimeout(typeTimer);
+    captionEl.classList.remove("dim");
+    let i = 0;
+    const cps = 24;
+    const step = () => {
+      captionEl.textContent = text.slice(0, ++i);
+      if(i < text.length) typeTimer = setTimeout(step, 1000/cps);
+    };
+    step();
+  }
+
+  function showBanner(text){ bannerEl.textContent = text; bannerEl.classList.remove("hidden"); }
+  function hideBanner(){ bannerEl.classList.add("hidden"); }
+  function showStatus(text){ statusText.textContent = text; statusChip.classList.add("on"); }
+  function hideStatus(){ statusChip.classList.remove("on"); }
+  function setDebug(kv){
+    const map = { adapter:"d-adapter", stt:"d-stt", guard:"d-guard", tier:"d-tier", route:"d-route", tts:"d-tts" };
+    for(const key in kv){ const el = document.getElementById(map[key]); if(el) el.textContent = kv[key]; }
+  }
+  function toIdle(){ setFace("rest"); hideStatus(); setCaption("Hold the space bar and speak.", true); }
+
+  /* ---------------- speech out (mouth synced to real audio) ---------------- */
+  async function speak(text, concerned){ return speakWith(text, concerned, null); }
+
+  async function speakWith(text, concerned, player){
+    if(!text && !player) return;
+    setFace(concerned ? "comfort" : "speak");
+    speaking = true;
+    speakingUntil = performance.now() + (text ? text.length*120 : 3000) + 3000;
+    if(text) typeCaption(text);
+    try { await (player ? player() : defaultSpeak(text)); }
+    finally { speaking = false; }
+  }
+  async function defaultSpeak(text){
+    if(!text) return;
+    if(MODE === "live"){ try { return await streamTts(text); } catch(e){ /* fall through */ } }
+    return browserSpeak(text);
+  }
+  function browserSpeak(text){
+    return new Promise(res => {
+      try{
+        const u = new SpeechSynthesisUtterance(text);
+        u.rate = 0.98; u.pitch = 1.0; u.onend = res; u.onerror = res;
+        speechSynthesis.cancel(); speechSynthesis.speak(u);
+        setDebug({ tts: "browser speech" });
+      }catch{ res(); }
+    });
+  }
+  async function streamTts(text){
+    const start = performance.now();
+    const resp = await fetch("/api/tts?text=" + encodeURIComponent(text));
+    if(!resp.ok || !resp.body) throw new Error("tts unavailable");
+    if("MediaSource" in window && MediaSource.isTypeSupported("audio/mpeg")) await mediaSourcePlay(resp.body, start);
+    else { const buf = await resp.arrayBuffer(); setDebug({ tts: Math.round(performance.now()-start)+" ms (buffered)" }); await playArrayBuffer(buf); }
+  }
+  function mediaSourcePlay(readable, start){
+    return new Promise((resolve, reject) => {
+      const ms = new MediaSource();
+      const audio = new Audio(); audio.src = URL.createObjectURL(ms);
+      let first = true;
+      ms.addEventListener("sourceopen", async () => {
+        const sb = ms.addSourceBuffer("audio/mpeg");
+        const reader = readable.getReader();
+        const pump = async () => {
+          const { done, value } = await reader.read();
+          if(done){ try{ ms.endOfStream(); }catch{} return; }
+          await appendBuffer(sb, value);
+          if(first){ first = false; setDebug({ tts: Math.round(performance.now()-start)+" ms" }); audio.play().catch(()=>{}); }
+          pump();
+        };
+        pump().catch(reject);
+      });
+      audio.onended = resolve; audio.onerror = () => resolve();
+    });
+  }
+  function appendBuffer(sb, chunk){ return new Promise(res => { sb.addEventListener("updateend", res, { once:true }); sb.appendBuffer(chunk); }); }
+  function playArrayBuffer(buf){
+    return new Promise(res => {
+      const a = new Audio(URL.createObjectURL(new Blob([buf], { type:"audio/mpeg" })));
+      a.onended = res; a.onerror = () => res(); a.play().catch(() => res());
+    });
+  }
+  async function playFallback(){
+    try{ const r = await fetch("/api/fallback-audio"); if(r.ok){ const b = await r.arrayBuffer(); setDebug({ tts:"fallback mp3" }); return await playArrayBuffer(b); } }catch{}
+    return browserSpeak(FALLBACK_LINE);
+  }
+  async function playProactive(meta){
+    if(MODE === "live"){ try { return await streamTts(meta.spoken_response); }catch{} }
+    try{ const r = await fetch("/api/proactive-audio?rule_id="+encodeURIComponent(meta.rule_id)); if(r.ok){ const b = await r.arrayBuffer(); setDebug({ tts:"proactive mp3" }); return await playArrayBuffer(b); } }catch{}
+    return browserSpeak(meta.spoken_response);
+  }
+
+  /* ---------------- pipeline result handling ---------------- */
+  let busy = false;
+  const isEscalation = tier => tier === "URGENT" || tier === "DEFER";
+
+  async function handleMeta(fetchPromise){
+    if(busy) return; busy = true;
+    try{
+      const resp = await fetchPromise;
+      const meta = await resp.json();
+      await renderMeta(meta);
+    }catch(e){
+      showBanner("Offline — could not reach the server");
+      await speakWith(FALLBACK_LINE, true, playFallback);
+      toIdle();
+    }finally{ busy = false; }
+  }
+
+  async function renderMeta(meta){
+    setDebug({
+      adapter: `${meta.adapter || ADAPTER} (${MODE})`,
+      stt: `${meta.timings ? meta.timings.stt_ms : 0} ms`,
+      guard: meta.guardrail_triggered ? `${meta.guardrail_floor || "-"} [${meta.rule_id || "-"}]` : "none",
+      tier: `${meta.model_tier || "-"} → ${meta.tier || "-"}`,
+      route: `${meta.timings ? meta.timings.route_ms : 0} ms`,
+    });
+
+    if(meta.retry){
+      await speak(meta.spoken_response, false);
+      toIdle(); return;
+    }
+
+    if(meta.transcript){ setCaption("“" + meta.transcript + "”", true); await sleep(700); }
+
+    if(meta.degraded || meta.use_fallback_audio){
+      showBanner("Couldn't reach your care team — advising 111");
+      await speakWith(meta.spoken_response || FALLBACK_LINE, true, playFallback);
+    } else {
+      if(meta.escalate) showBanner("✓ Sent to your care team — " + (meta.scrubbed_payload || ""));
+      else hideBanner();
+      await speak(meta.spoken_response, isEscalation(meta.tier));
+    }
+
+    /* sycophancy 2nd turn: the pushback and whether the device held */
+    if(meta.followup && meta.followup.spoken_response){
+      await sleep(500);
+      setCaption("“" + meta.followup.transcript + "”", true); await sleep(700);
+      setDebug({ tier: `hold: ${meta.followup.hold_status} → ${meta.followup.tier}` });
+      await speak(meta.followup.spoken_response, isEscalation(meta.followup.tier));
+    }
+
+    toIdle();
+  }
+
+  /* ---------------- input: push-to-talk ---------------- */
+  let recorder = null, chunks = [], stream = null, talking = false;
+  async function ensureMic(){ if(stream) return stream; stream = await navigator.mediaDevices.getUserMedia({ audio:true }); return stream; }
+  async function startTalk(){
+    if(talking || busy) return;
+    try{ await ensureMic(); }catch(e){ setCaption("I need microphone access to listen."); return; }
+    talking = true; chunks = [];
+    recorder = new MediaRecorder(stream);
+    recorder.ondataavailable = e => { if(e.data.size) chunks.push(e.data); };
+    recorder.start();
+    setFace("listen"); hideBanner(); setCaption("Listening…", true);
+  }
+  async function stopTalk(){
+    if(!talking) return; talking = false;
+    const done = new Promise(res => { recorder.onstop = res; });
+    recorder.stop(); await done;
+    setFace("think"); setCaption("…", true);
+    const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+    const fd = new FormData(); fd.append("audio", blob, "clip.webm");
+    await handleMeta(fetch("/api/talk", { method:"POST", body:fd }));
+  }
+
+  /* ---------------- input: replays + typed ---------------- */
+  function replay(key){
+    if(busy) return;
+    if(REPLAYS && Object.keys(REPLAYS).length && !REPLAYS[key]) return;   // ignore unmapped keys
+    setFace("think"); setCaption("…", true); hideBanner();
+    handleMeta(fetch("/api/replay", {
+      method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ key }),
+    }));
+  }
+  let typeBox = null;
+  function toggleType(){
+    if(typeBox){ hideType(); return; }
+    typeBox = document.createElement("input");
+    typeBox.id = "type-input"; typeBox.placeholder = "Type what the person says, then Enter…";
+    document.body.appendChild(typeBox); typeBox.focus();
+    typeBox.addEventListener("keydown", e => {
+      if(e.key === "Enter"){
+        const text = typeBox.value.trim(); hideType();
+        if(!text) return;
+        setFace("think"); setCaption("…", true); hideBanner();
+        handleMeta(fetch("/api/type", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ text }) }));
+      } else if(e.key === "Escape"){ hideType(); }
+    });
+  }
+  function hideType(){ if(typeBox){ typeBox.remove(); typeBox = null; } }
+
+  /* ===================================================================
+     Margaret's World (Piece 3) + care-team round-trip (Piece 4) over SSE
+     =================================================================== */
+  const WORLDC = document.getElementById("world");
+  const WCTX = WORLDC ? WORLDC.getContext("2d") : null;
+  let worldState = { timeline:"-", day:0, history:[], flags:[] };
+  let advancing = false;
+
+  function setupSSE(){
+    try{
+      const es = new EventSource("/api/events");
+      es.onmessage = ev => {
+        let m; try{ m = JSON.parse(ev.data); }catch{ return; }
+        if(m.type === "world_update"){ worldState = m.world || worldState; updateAmbient(); drawWorld(); }
+        else if(m.type === "proactive"){ onProactive(m); }
+        else if(m.type === "action_confirmed"){ onActionConfirmed(m); }
+        else if(m.type === "reset"){ clearKiosk(); }
+        else if(m.type === "mode"){ MODE = m.mode; ADAPTER = m.adapter; setDebug({ adapter:`${ADAPTER} (${MODE})` }); }
+      };
+      es.onerror = () => { /* browser auto-reconnects */ };
+    }catch(e){ /* SSE unsupported: A still works via the POST response */ }
+  }
+  setupSSE();
+
+  function updateAmbient(){
+    const h = worldState.history && worldState.history.length ? worldState.history[worldState.history.length-1] : null;
+    const wt = h && h.weight_kg != null ? ` · ${h.weight_kg} kg` : "";
+    ambientEl.textContent = `${worldState.timeline} · day ${worldState.day}${wt}`;
+  }
+
+  async function advanceWorld(){
+    if(advancing || busy) return; advancing = true;
+    setFace("think"); setCaption("…", true);
+    try{
+      const resp = await fetch("/api/world/advance", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ days:3 }) });
+      const data = await resp.json();
+      if(!data.proactive){
+        setFace("rest"); setCaption("All quiet — nothing to mention.", true);
+        setTimeout(() => { if(state === "rest") setCaption("Hold the space bar and speak.", true); }, 1800);
+      } else if(!("EventSource" in window)){
+        await onProactive(data.proactive);    // SSE-unsupported fallback
+      }
+    }catch(e){ toIdle(); }
+    finally{ advancing = false; }
+  }
+  async function cycleWorld(){
+    const r = await fetch("/api/world/cycle", { method:"POST" });
+    const d = await r.json();
+    setDebug({ adapter: `${ADAPTER} (${MODE}) · timeline ${d.timeline}` });
+  }
+  async function resetWorld(){ await fetch("/api/world/reset", { method:"POST" }); clearKiosk(); }
+  function clearKiosk(){ hideBanner(); hideStatus(); setFace("rest"); setCaption("Hold the space bar and speak.", true); }
+
+  /* the proactive moment — the device notices and speaks first */
+  async function onProactive(meta){
+    if(busy) return; busy = true;
+    try{
+      setFace("comfort"); setCaption("", true);   // "wants to mention something" — warm glow, no words yet
+      await sleep(2000);
+      if(meta.escalate) showBanner("✓ Sent to your care team — " + (meta.scrubbed_payload || ""));
+      else hideBanner();
+      await speakWith(meta.spoken_response, isEscalation(meta.tier), () => playProactive(meta));
+      toIdle();
+    }finally{ busy = false; }
+  }
+
+  /* the nurse approved — closing beat, the device tells Margaret */
+  async function onActionConfirmed(meta){
+    showBanner(meta.banner || "✓ Your care team has actioned this");
+    if(busy) return; busy = true;
+    try{
+      await speak(meta.spoken_response, false);   // warm, reassuring
+      showStatus("Care team notified");
+      setCaption(meta.spoken_response);
+    }finally{ busy = false; }
+  }
+
+  /* ---------------- world overlay (W): auditable-maths sparklines ---------------- */
+  function toggleWorld(){ if(WORLDC){ WORLDC.classList.toggle("hidden"); drawWorld(); } }
+  function drawWorld(){
+    if(!WCTX || WORLDC.classList.contains("hidden")) return;
+    const HH = worldState.history || [];
+    const w = WORLDC.width, h = WORLDC.height, pad = 26;
+    WCTX.clearRect(0, 0, w, h);
+    WCTX.fillStyle = "rgba(0,0,0,0.55)"; WCTX.fillRect(0, 0, w, h);
+    if(!HH.length){ WCTX.fillStyle = "#b9a99a"; WCTX.font = "13px system-ui"; WCTX.fillText("press A to let a few days pass", pad, h/2); return; }
+    const days = HH.map(r => r.day);
+    const spark = (key, colour, lo, hi, yTop, yBot) => {
+      const pts = HH.map(r => r[key]).filter(v => v != null);
+      if(!pts.length) return;
+      const mn = Math.min(...pts, lo), mx = Math.max(...pts, hi);
+      WCTX.strokeStyle = colour; WCTX.lineWidth = 2; WCTX.beginPath();
+      HH.forEach((r, i) => {
+        if(r[key] == null) return;
+        const x = pad + (w - 2*pad) * (days.length > 1 ? i/(days.length-1) : 0.5);
+        const y = yBot - (yBot - yTop) * ((r[key] - mn) / (mx - mn || 1));
+        i ? WCTX.lineTo(x, y) : WCTX.moveTo(x, y);
+      });
+      WCTX.stroke();
+      WCTX.fillStyle = colour; WCTX.font = "11px system-ui";
+      WCTX.fillText(`${key} ${pts[pts.length-1]}`, pad, yTop - 4);
+    };
+    spark("weight_kg", "#8fd0a8", 76, 82, 22, h/2 - 10);
+    spark("sbp", "#e8a06a", 120, 150, h/2 + 14, h - 20);
+    (worldState.flags || []).forEach(f => {
+      WCTX.fillStyle = f.tier === "URGENT" ? "#e8734d" : "#c9a24a";
+      WCTX.fillText("▲ " + f.rule_id, w - 170, 16);
+    });
+  }
+
+  /* ---------------- presenter chrome + keys ---------------- */
+  const chromeToggle = document.getElementById("chromeToggle");
+  function toggleChrome(){ controls.classList.toggle("hidden"); }
+  chromeToggle.addEventListener("click", toggleChrome);
+  function toggleDebug(){ debugEl.classList.toggle("hidden"); }
+
+  document.getElementById("clock").addEventListener("click", async () => {
+    try{ if(!document.fullscreenElement) await document.documentElement.requestFullscreen(); else await document.exitFullscreen(); }catch(_){}
+    try{ await navigator.wakeLock.request("screen"); }catch(_){}
+  });
+
+  addEventListener("keydown", e => {
+    if(e.target && e.target.id === "type-input") return;      // typing
+    if(e.code === "Space"){ e.preventDefault(); if(!e.repeat) startTalk(); return; }
+    if(e.key >= "1" && e.key <= "9"){ replay(e.key); return; }
+    const k = e.key.toLowerCase();
+    if(k === "t"){ e.preventDefault(); toggleType(); return; }
+    if(k === "d"){ toggleDebug(); return; }
+    if(k === "a"){ e.preventDefault(); advanceWorld(); return; }
+    if(k === "s"){ cycleWorld(); return; }
+    if(k === "r"){ resetWorld(); return; }
+    if(k === "w"){ toggleWorld(); return; }
+    if(k === "h"){ toggleChrome(); return; }
+    if(e.key === "Escape"){ hideType(); }
+  });
+  addEventListener("keyup", e => { if(e.code === "Space"){ e.preventDefault(); stopTalk(); } });
+
+  stage.addEventListener("pointerdown", e => { if(e.target.id !== "type-input") startTalk(); });
+  stage.addEventListener("pointerup", () => stopTalk());
+  stage.addEventListener("pointercancel", () => stopTalk());
+
+  /* first paint */
+  setFace("rest");
+  setCaption("Hold the space bar and speak.", true);
+})();
+</script>
+</body>
+</html>

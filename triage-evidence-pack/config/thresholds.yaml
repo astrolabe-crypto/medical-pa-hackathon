@@ -1,0 +1,141 @@
+# Clinical red-flag thresholds — SINGLE SOURCE OF TRUTH for src/guardrails.py
+#
+# Every threshold cites its source: guideline + section of research.md
+# (compass_artifact_...markdown.md in the repo parent; "research doc" below).
+#
+# CAVEATS (carried into every generated report — see report.py):
+#   - Some figures are patient-education/charity sourced (AHA, BHF, NHS.uk,
+#     Heart Failure Matters) rather than primary NICE text. CSO must reconcile
+#     against NG106 (chronic HF), NG115 (COPD), NG136 (hypertension), NG28
+#     (T2DM) before any go-live. (research doc, Caveats)
+#   - NEWS2 is validated for in-hospital deterioration, NOT home self-report.
+#     Using it as a routing anchor is defensible but off-label. (research doc, Caveats)
+#   - clinician_signoff: PENDING on all thresholds until a registered
+#     clinician (CSO) reviews.
+
+version: thresholds_v1
+clinician_signoff: PENDING
+
+blood_pressure:
+  # Hypertensive crisis: >=180/120 mmHg. Either bound breached counts.
+  # Asymptomatic -> urgency (same-day contact / 111); with chest pain,
+  # breathlessness, neuro/vision symptoms or severe headache -> 999.
+  # Source: research doc S1 "Hypertensive crisis"; NG136 caveat applies.
+  crisis_systolic: 180
+  crisis_diastolic: 120
+
+glucose:
+  # Hypoglycaemia: <4.0 mmol/L ("four is the floor"). Severe hypo (third-party
+  # help needed, impaired consciousness, seizure) = emergency.
+  # Source: research doc S1 "Type 2 diabetes / Hypoglycaemia" (NHS).
+  hypo_mmol_l: 4.0
+  # Severe hypo proxy when only a number is available (clinical judgement
+  # band, flagged PENDING clinician sign-off; not from a named guideline).
+  severe_hypo_mmol_l: 2.8
+
+ketones:
+  # Blood ketones (beta-hydroxybutyrate), mmol/L.
+  # 0.6-1.5 + unwell -> contact (routine/urgent GP-nurse); 1.6-3.0 -> call 111
+  # (urgent); >=3.0 -> emergency. ADA: >=1.6 seek emergency care.
+  # Source: research doc S1 "Hyperglycaemia / DKA" (NHS.uk DKA guidance, ADA).
+  contact_low_mmol_l: 0.6
+  urgent_mmol_l: 1.6
+  emergency_mmol_l: 3.0
+
+heart_failure_weight:
+  # Weight gain >2 kg (~3 lb) in 3 days = contact clinician (ESC / Heart
+  # Failure Matters / BHF). Gain + orthopnoea/PND/rest breathlessness =
+  # red zone -> urgent/emergency (AHA framing).
+  # Source: research doc S1 "Heart failure (self-management red-flags)".
+  gain_kg: 2.0
+  window_days: 3
+
+spo2:
+  # NEWS2 SpO2 scales (RCP 2017). Scale 1 = default. Scale 2 ONLY for
+  # confirmed hypercapnic (type-2) respiratory failure, i.e. many COPD
+  # retainers. Wrong-scale use is the most common NEWS2 error.
+  # Source: research doc S1 "NEWS2" bullet 2-3.
+  scale1:
+    score3_max: 91   # <=91 -> score 3 (emergency-level parameter)
+    score2_max: 93   # 92-93 -> score 2
+    score1_max: 95   # 94-95 -> score 1; >=96 -> 0
+  scale2:
+    score3_max: 83   # <=83 -> score 3
+    score2_max: 85   # 84-85 -> score 2
+    score1_max: 87   # 86-87 -> score 1; 88-92 -> 0 (on prescribed O2 targets)
+
+news2:
+  # Aggregate bands (RCP 2017; NHS England endorsed).
+  # 0-4 routine/monitor; single param = 3 -> urgent review; 5-6 -> urgent
+  # clinical review; >=7 -> emergency response.
+  # Source: research doc S1 "NEWS2" escalation bullet.
+  urgent_aggregate: 5
+  emergency_aggregate: 7
+  # CRITICAL HARNESS RULE: a missing parameter is NOT zero. Insufficient data
+  # must force DEFER, never REASSURE. (research doc S1 "Critical harness rule")
+  respiratory_rate:      # breaths/min
+    score3: {low_max: 8, high_min: 25}
+    score2: {high_min: 21}    # 21-24
+    score1: {low_max: 11}     # 9-11
+    normal: {low: 12, high: 20}
+  pulse:                 # bpm
+    score3: {low_max: 40, high_min: 131}
+    score2: {high_min: 111}   # 111-130
+    score1: {low_max: 50, high_min: 91}   # 41-50 or 91-110
+    normal: {low: 51, high: 90}
+  systolic_bp:           # mmHg (NEWS2 bands; hypertensive crisis handled above)
+    score3: {low_max: 90, high_min: 220}
+    score2: {low_max: 100}    # 91-100
+    score1: {low_max: 110}    # 101-110
+    normal: {low: 111, high: 219}
+  temperature:           # deg C
+    score3: {low_max: 35.0}
+    score2: {high_min: 39.1}
+    score1: {low_max: 36.0, high_min: 38.1}   # 35.1-36.0 or 38.1-39.0
+    normal: {low: 36.1, high: 38.0}
+  # Consciousness: any new Confusion/Voice/Pain/Unresponsive (ACVPU) = 3.
+
+repeat_contact:
+  # Repeat contact is a strong under-recognised predictor of false-negative
+  # triage: 2 contacts OR 1.77 (95% CI 1.14-2.75); >=3 contacts OR 4.02
+  # (95% CI 1.68-9.65). Third contact in 48h must auto-escalate.
+  # Source: research doc S2 (Marincowitz et al., BMJ Open 2022).
+  window_hours: 48
+  auto_escalate_count: 3
+
+copd:
+  # Exacerbation red flags (NICE NG115, NHS trust action plans):
+  # 999 if severe breathlessness, chest pain, haemoptysis, cyanosis/confusion.
+  # Cardinal exacerbation signs >2 days -> contact/rescue pack (routine).
+  # Encoded as symptom flags, not numerics — see guardrails.SYMPTOM_RED_FLAGS.
+  # Source: research doc S1 "COPD exacerbation".
+  exacerbation_days: 2
+
+drift:
+  # Home-monitoring drift/trend detection for the demo world engine
+  # (demo/world/drift.py). Deterministic maths only — no LLM in detection.
+  # The weight red-flag REUSES heart_failure_weight above (gain_kg / window_days);
+  # it is NOT duplicated here. The remaining values are home-trend heuristics,
+  # NOT from a named guideline — flagged PENDING CSO review like other
+  # patient-education-sourced numbers. Adding this section is additive and does
+  # not change any Gate 0 guardrail behaviour.
+  clinician_signoff: PENDING
+  sustained_trend:
+    # Sustained positive weight or systolic-BP slope across >= N consecutive
+    # daily readings, with net change beyond the day-to-day noise band ->
+    # ROUTINE nudge. Heuristic (demo); CSO to reconcile before any real use.
+    min_consecutive_days: 5
+    weight_net_kg: 1.0          # net rise over the window to count as real drift
+    weight_noise_kg: 0.4        # per-day variation treated as noise
+    sbp_net_mmhg: 12            # net systolic rise over the window
+    sbp_noise_mmhg: 6           # per-day variation treated as noise
+  adherence:
+    # >= missed_doses missed within any window_days -> ROUTINE (conversational).
+    # Mirrors the intent of medication non-adherence monitoring; demo heuristic.
+    missed_doses: 2
+    window_days: 5
+  data_gap:
+    # No reading for >= max_days -> data_gap. Missing data is NEVER treated as
+    # normal (mirrors the Gate 0 news2/missing-reading rule). Prompts a gentle
+    # check-in. Demo heuristic.
+    max_days: 3

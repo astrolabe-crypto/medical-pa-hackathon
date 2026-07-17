@@ -1,0 +1,24 @@
+# --- Python ---
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+.env
+
+# --- macOS ---
+.DS_Store
+
+# --- Evaluation runs (generate one on the demo machine; the launcher does this) ---
+triage-evidence-pack/results/*
+!triage-evidence-pack/results/.gitkeep
+
+# --- Demo runtime state / logs / recorded voice (never commit) ---
+triage-evidence-pack/demo/escalations.jsonl
+triage-evidence-pack/demo/escalations-*.jsonl
+triage-evidence-pack/demo/world/margaret_state.yaml
+triage-evidence-pack/demo/replays/*.webm
+triage-evidence-pack/demo/replays/*.wav
+triage-evidence-pack/demo/replays/*.m4a
+!triage-evidence-pack/demo/replays/_fallback_unreachable.mp3
+!triage-evidence-pack/demo/replays/_proactive_*.mp3

@@ -1,0 +1,26 @@
+# Per-model token pricing used ONLY by the preflight cost estimate
+# (python run_evidence_pack.py --preflight). USD per 1,000,000 tokens.
+#
+# This drives a *pre-spend* estimate so nobody fires ~1,900 calls blind.
+# It never changes routing or gates. Estimates are rough — the real bill is
+# whatever your provider charges; verify before a large run.
+#
+# Keyed by the exact model id pinned in models.yaml. If a served/pinned model
+# has no entry here, the preflight prints its token counts and says
+# "no price on file" rather than inventing a number.
+
+version: pricing_v1
+
+models:
+  # --- Anthropic judge (authoritative, from the claude-api reference) ---
+  claude-haiku-4-5:        {input_per_1m: 1.00,  output_per_1m: 5.00,  source: "anthropic list price"}
+  claude-opus-4-8:         {input_per_1m: 5.00,  output_per_1m: 25.00, source: "anthropic list price"}
+
+  # --- OpenAI surrogates (PLACEHOLDER — confirm at platform.openai.com/pricing
+  #     or your endpoint's price sheet before trusting the dollar figure) ---
+  gpt-4.1-nano:            {input_per_1m: 0.10,  output_per_1m: 0.40,  source: "ESTIMATE - verify"}
+  gpt-5.4:                 {input_per_1m: 5.00,  output_per_1m: 15.00, source: "ESTIMATE - verify"}
+
+# Rough output-token count assumed per model reply when estimating cost. Routing
+# replies are short; the runner caps output at models.yaml max_tokens anyway.
+assumed_output_tokens_per_reply: 160

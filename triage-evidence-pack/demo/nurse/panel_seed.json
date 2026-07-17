@@ -1,0 +1,91 @@
+{
+  "_comment": "Static background panel for the nurse queue demo. Believable but clearly not-Margaret; all amber (ROUTINE) or grey (WATCH). Margaret arrives live via SSE with a red URGENT badge and is NOT seeded here. Counts sum to total (231 quiet + 12 watching + 4 need review = 247).",
+  "counts": {
+    "total": 247,
+    "quiet": 231,
+    "watching": 12,
+    "needs_review": 4
+  },
+  "patients": [
+    {
+      "id": "p-arturo",
+      "name": "Arturo Enrile",
+      "age": 68,
+      "sex": "M",
+      "conditions": ["COPD", "ex-smoker"],
+      "reason": "Sputum turned green, breathless on the stairs since yesterday",
+      "tier": "ROUTINE",
+      "last_contact": "yesterday, 18:40"
+    },
+    {
+      "id": "p-doreen",
+      "name": "Doreen Whitlock",
+      "age": 74,
+      "sex": "F",
+      "conditions": ["Type 2 diabetes"],
+      "reason": "Ketones 1.2 mmol/L and feeling off-colour this morning",
+      "tier": "ROUTINE",
+      "last_contact": "today, 07:15"
+    },
+    {
+      "id": "p-mohammed",
+      "name": "Mohammed Farah",
+      "age": 61,
+      "sex": "M",
+      "conditions": ["Hypertension"],
+      "reason": "Home BP 158/96 - recheck due, no symptoms reported",
+      "tier": "ROUTINE",
+      "last_contact": "2 days ago"
+    },
+    {
+      "id": "p-brenda",
+      "name": "Brenda Ackroyd",
+      "age": 79,
+      "sex": "F",
+      "conditions": ["Heart failure NYHA II", "AF"],
+      "reason": "Missed 3 furosemide doses in 5 days - adherence slip",
+      "tier": "ROUTINE",
+      "last_contact": "3 days ago"
+    },
+    {
+      "id": "p-idris",
+      "name": "Idris Bello",
+      "age": 55,
+      "sex": "M",
+      "conditions": ["Type 1 diabetes"],
+      "reason": "No readings for 4 days - data gap, phone likely off",
+      "tier": "WATCH",
+      "last_contact": "4 days ago"
+    },
+    {
+      "id": "p-sheila",
+      "name": "Sheila Nkomo",
+      "age": 71,
+      "sex": "F",
+      "conditions": ["COPD", "on home oxygen"],
+      "reason": "SpO2 drifting 91-92% on scale 2, stable but worth an eye",
+      "tier": "WATCH",
+      "last_contact": "today, 06:50"
+    },
+    {
+      "id": "p-gordon",
+      "name": "Gordon Pryce",
+      "age": 66,
+      "sex": "M",
+      "conditions": ["Heart failure NYHA II"],
+      "reason": "Weight +0.9 kg over 4 days - within noise, trending watched",
+      "tier": "WATCH",
+      "last_contact": "yesterday, 20:10"
+    },
+    {
+      "id": "p-nuala",
+      "name": "Nuala Devlin",
+      "age": 63,
+      "sex": "F",
+      "conditions": ["Hypertension", "Type 2 diabetes"],
+      "reason": "Glucose 12.4 mmol/L twice this week, otherwise well",
+      "tier": "WATCH",
+      "last_contact": "2 days ago"
+    }
+  ]
+}

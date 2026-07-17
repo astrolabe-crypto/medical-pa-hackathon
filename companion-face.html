@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1C1820">
+<title>Companion</title>
+<style>
+  :root{
+    --bg:#1C1820;         /* warm charcoal-plum, bedside dark */
+    --bg-raise:#272130;
+    --glow:#F2B879;       /* lamplight amber */
+    --glow-deep:#E09A55;
+    --ink:#F5EFE6;        /* warm cream */
+    --ink-dim:#A99FA8;
+    --calm:#A8C4B2;       /* sage — listening */
+    --unit:8px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;overflow:hidden}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:-apple-system,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+    display:flex;flex-direction:column;align-items:center;
+    user-select:none;-webkit-user-select:none;
+  }
+
+  /* ---------- clock ---------- */
+  header{
+    padding:calc(var(--unit)*5) 0 0;
+    text-align:center;cursor:pointer;
+  }
+  #time{
+    font-size:clamp(40px,11vw,64px);
+    font-weight:300;letter-spacing:.02em;
+    font-variant-numeric:tabular-nums;
+    color:var(--ink);
+  }
+  #date{
+    font-size:17px;color:var(--ink-dim);
+    margin-top:calc(var(--unit)*0.5);letter-spacing:.04em;
+  }
+
+  /* ---------- face ---------- */
+  main{
+    flex:1;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;
+    width:100%;min-height:0;
+  }
+  #face{display:block;width:min(88vw,420px);height:auto;}
+
+  /* listening dots */
+  #listenDots{
+    display:flex;gap:10px;height:20px;align-items:center;
+    opacity:0;transition:opacity .4s ease;
+  }
+  #listenDots.on{opacity:1}
+  #listenDots span{
+    width:8px;height:8px;border-radius:50%;
+    background:var(--calm);
+    animation:dotPulse 1.4s ease-in-out infinite;
+  }
+  #listenDots span:nth-child(2){animation-delay:.2s}
+  #listenDots span:nth-child(3){animation-delay:.4s}
+  @keyframes dotPulse{
+    0%,100%{transform:scale(1);opacity:.45}
+    50%{transform:scale(1.5);opacity:1}
+  }
+
+  /* ---------- caption ---------- */
+  #captionWrap{
+    min-height:120px;width:min(88vw,460px);
+    text-align:center;padding:0 calc(var(--unit)*2);
+    display:flex;flex-direction:column;align-items:center;gap:calc(var(--unit)*1.5);
+  }
+  #stateLabel{
+    font-size:13px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--calm);min-height:16px;
+    opacity:0;transition:opacity .4s ease;
+  }
+  #stateLabel.on{opacity:1}
+  #caption{
+    font-size:clamp(19px,5.2vw,24px);
+    line-height:1.45;font-weight:400;color:var(--ink);
+    min-height:2.9em;
+  }
+  #statusChip{
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:15px;color:var(--ink-dim);
+    background:var(--bg-raise);
+    border:1px solid #3A3242;
+    padding:8px 16px;border-radius:999px;
+    opacity:0;transform:translateY(6px);
+    transition:opacity .5s ease,transform .5s ease;
+  }
+  #statusChip.on{opacity:1;transform:none}
+  #statusChip .tick{
+    width:18px;height:18px;border-radius:50%;
+    background:var(--calm);color:var(--bg);
+    display:inline-flex;align-items:center;justify-content:center;
+    font-size:12px;font-weight:700;
+  }
+
+  /* ---------- controls ---------- */
+  footer{
+    width:100%;display:flex;justify-content:center;gap:calc(var(--unit)*1);
+    padding:calc(var(--unit)*2) calc(var(--unit)*2) calc(var(--unit)*4);
+    transition:opacity .35s ease,transform .35s ease;
+  }
+  footer.hidden{opacity:0;transform:translateY(12px);pointer-events:none}
+  footer button{
+    font:inherit;font-size:15px;font-weight:500;
+    color:var(--ink);background:var(--bg-raise);
+    border:1px solid #3A3242;border-radius:999px;
+    min-height:44px;padding:0 18px;cursor:pointer;
+    transition:border-color .2s ease,color .2s ease;
+  }
+  footer button:focus-visible{outline:2px solid var(--glow);outline-offset:2px}
+  footer button.active{border-color:var(--glow);color:var(--glow)}
+
+  #chromeToggle{
+    position:fixed;top:14px;right:14px;
+    width:44px;height:44px;border-radius:50%;
+    background:transparent;border:none;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+  }
+  #chromeToggle::after{
+    content:"";width:6px;height:6px;border-radius:50%;
+    background:var(--ink-dim);opacity:.5;
+  }
+  #chromeToggle:focus-visible{outline:2px solid var(--glow);outline-offset:2px;border-radius:50%}
+
+  @media (prefers-reduced-motion:reduce){
+    #listenDots span{animation:none;opacity:.8}
+    #statusChip{transition:opacity .3s ease}
+  }
+</style>
+</head>
+<body>
+
+<header id="clock" title="Tap for fullscreen">
+  <div id="time">–:–</div>
+  <div id="date"></div>
+</header>
+
+<main>
+  <canvas id="face" width="840" height="640" aria-label="Companion face"></canvas>
+  <div id="listenDots" aria-hidden="true"><span></span><span></span><span></span></div>
+</main>
+
+<div id="captionWrap">
+  <div id="stateLabel"></div>
+  <div id="caption" aria-live="polite"></div>
+  <div id="statusChip"><span class="tick">✓</span><span id="statusText"></span></div>
+</div>
+
+<footer id="controls">
+  <button data-state="rest">Rest</button>
+  <button data-state="listen">Listen</button>
+  <button data-state="speak">Speak</button>
+  <button data-state="comfort">Comfort</button>
+</footer>
+
+<button id="chromeToggle" aria-label="Hide controls"></button>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------- config ---------------- */
+  const params = new URLSearchParams(location.search);
+  const NAME = params.get("name") || "Margaret";
+  const CONTACT = params.get("contact") || "Sarah";
+
+  const SPEAK_LINES = [
+    `Good evening, ${NAME}. Did your daughter visit in the end?`,
+    `Your morning readings are in. Would you like to hear them?`,
+    `It's nearly time for your evening tablets. I'll remind you at eight.`
+  ];
+  const COMFORT_LINE =
+    `I'm right here with you, ${NAME}. You're not alone. ` +
+    `I've let ${CONTACT} know you'd like some company. ` +
+    `Shall we keep talking?`;
+
+  const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ---------------- clock ---------------- */
+  const timeEl = document.getElementById("time");
+  const dateEl = document.getElementById("date");
+  function tickClock(){
+    const d = new Date();
+    timeEl.textContent = d.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+    dateEl.textContent = d.toLocaleDateString([], {weekday:"long", day:"numeric", month:"long"});
+  }
+  tickClock(); setInterval(tickClock, 10000);
+
+  /* ---------------- state machine ---------------- */
+  const captionEl   = document.getElementById("caption");
+  const stateLabel  = document.getElementById("stateLabel");
+  const listenDots  = document.getElementById("listenDots");
+  const statusChip  = document.getElementById("statusChip");
+  const statusText  = document.getElementById("statusText");
+  const controls    = document.getElementById("controls");
+
+  let state = "rest";
+  let speakIndex = 0;
+  let typeTimer = null;
+  let speaking = false;          // mouth animating
+  let speakingUntil = 0;
+
+  function clearCaption(){
+    clearTimeout(typeTimer);
+    captionEl.textContent = "";
+  }
+
+  function typeLine(text, cps, done){
+    clearCaption();
+    let i = 0;
+    const step = () => {
+      captionEl.textContent = text.slice(0, ++i);
+      if(i < text.length){
+        typeTimer = setTimeout(step, 1000/cps);
+      } else if(done){ done(); }
+    };
+    step();
+  }
+
+  function setState(next){
+    state = next;
+    speaking = false;
+    clearCaption();
+    stateLabel.classList.remove("on");
+    listenDots.classList.remove("on");
+    statusChip.classList.remove("on");
+
+    document.querySelectorAll("footer button").forEach(b =>
+      b.classList.toggle("active", b.dataset.state === next));
+
+    if(next === "listen"){
+      stateLabel.textContent = "Listening";
+      stateLabel.style.color = "var(--calm)";
+      stateLabel.classList.add("on");
+      listenDots.classList.add("on");
+    }
+
+    if(next === "speak"){
+      const line = SPEAK_LINES[speakIndex % SPEAK_LINES.length];
+      speakIndex++;
+      speaking = true;
+      speakingUntil = performance.now() + line.length * 55 + 600;
+      typeLine(line, 18, () => { /* mouth settles when speakingUntil passes */ });
+    }
+
+    if(next === "comfort"){
+      stateLabel.textContent = "I'm with you";
+      stateLabel.style.color = "var(--glow)";
+      stateLabel.classList.add("on");
+      speaking = true;
+      speakingUntil = performance.now() + COMFORT_LINE.length * 62 + 600;
+      typeLine(COMFORT_LINE, 15, () => {
+        const t = new Date().toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+        statusText.textContent = `${CONTACT} notified · ${t}`;
+        statusChip.classList.add("on");
+      });
+    }
+  }
+
+  controls.addEventListener("click", e => {
+    const btn = e.target.closest("button[data-state]");
+    if(btn) setState(btn.dataset.state);
+  });
+
+  addEventListener("keydown", e => {
+    const map = {"1":"rest","2":"listen","3":"speak","4":"comfort"};
+    if(map[e.key]) setState(map[e.key]);
+    if(e.key === "h") toggleChrome();
+  });
+
+  /* chrome hide/show for stage */
+  const chromeToggle = document.getElementById("chromeToggle");
+  function toggleChrome(){
+    controls.classList.toggle("hidden");
+  }
+  chromeToggle.addEventListener("click", toggleChrome);
+
+  /* fullscreen + wake lock on clock tap */
+  document.getElementById("clock").addEventListener("click", async () => {
+    try{
+      if(!document.fullscreenElement) await document.documentElement.requestFullscreen();
+      else await document.exitFullscreen();
+    }catch(_){}
+    try{ await navigator.wakeLock.request("screen"); }catch(_){}
+  });
+
+  /* ---------------- face rendering ---------------- */
+  const canvas = document.getElementById("face");
+  const ctx = canvas.getContext("2d");
+  const W = 840, H = 640;                 // logical size
+  function fitCanvas(){
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    canvas.width  = W * dpr;
+    canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  fitCanvas();
+  addEventListener("resize", fitCanvas);
+
+  /* face parameters: current values eased toward per-state targets */
+  const cur = { eyeH:150, tilt:0, smile:18, mouthOpen:0, glowA:0.55, gazeAmt:1, hueCalm:0 };
+
+  function targets(){
+    switch(state){
+      case "listen":  return { eyeH:170, tilt:0,     smile:14, glowA:0.62, gazeAmt:0.3, hueCalm:1 };
+      case "speak":   return { eyeH:150, tilt:0,     smile:20, glowA:0.68, gazeAmt:0.4, hueCalm:0 };
+      case "comfort": return { eyeH:160, tilt:0.14,  smile:4,  glowA:0.72, gazeAmt:0.1, hueCalm:0 };
+      default:        return { eyeH:150, tilt:0,     smile:18, glowA:0.55, gazeAmt:1,   hueCalm:0 };
+    }
+  }
+
+  /* blinking */
+  let lid = 0;                  // 0 open, 1 closed
+  let blinkAt = performance.now() + 2500;
+  let blinkPhase = -1;          // -1 idle, else timestamp blink started
+  const BLINK_MS = 220;
+
+  function updateBlink(now){
+    if(blinkPhase < 0 && now >= blinkAt){
+      blinkPhase = now;
+    }
+    if(blinkPhase >= 0){
+      const t = (now - blinkPhase) / BLINK_MS;
+      if(t >= 1){
+        blinkPhase = -1;
+        lid = 0;
+        blinkAt = now + 2500 + Math.random()*3500;
+      } else {
+        lid = Math.sin(Math.PI * t);   // close then open
+      }
+    }
+  }
+
+  /* synthetic speech cadence for the mouth */
+  function mouthAmp(now){
+    if(!speaking) return 0;
+    if(now > speakingUntil){ speaking = false; return 0; }
+    const t = now / 1000;
+    const a = 0.55 + 0.45 * Math.sin(t*11.3) * Math.sin(t*5.1 + 1.2);
+    const pause = (Math.sin(t*1.6) > 0.85) ? 0.15 : 1;   // occasional beat pauses
+    return Math.max(0, a * pause);
+  }
+
+  const ease = (c, t, k) => c + (t - c) * k;
+
+  function draw(now){
+    updateBlink(now);
+    const tgt = targets();
+    const k = reducedMotion ? 0.2 : 0.06;
+    for(const key of ["eyeH","tilt","smile","glowA","gazeAmt","hueCalm"]){
+      cur[key] = ease(cur[key], tgt[key], k);
+    }
+    cur.mouthOpen = ease(cur.mouthOpen, mouthAmp(now), 0.35);
+
+    ctx.clearRect(0, 0, W, H);
+    const cx = W/2, cy = H/2 - 20;
+
+    /* breathing lamplight halo — the signature */
+    const breathe = reducedMotion ? 0
+      : Math.sin(now/1000 * (state === "comfort" ? 0.45 : 0.7)) * 0.5 + 0.5;
+    const glowR = 300 + breathe * 26;
+    const g = ctx.createRadialGradient(cx, cy, 40, cx, cy, glowR);
+    const glowCol = cur.hueCalm > 0.5 ? "168,196,178" : "242,184,121";
+    g.addColorStop(0, `rgba(${glowCol},${(cur.glowA*0.32).toFixed(3)})`);
+    g.addColorStop(0.55, `rgba(${glowCol},${(cur.glowA*0.10).toFixed(3)})`);
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+
+    /* gaze drift (idle life) */
+    const gx = reducedMotion ? 0 : Math.sin(now/4200) * 10 * cur.gazeAmt;
+    const gy = reducedMotion ? 0 : Math.sin(now/6100 + 2) * 5 * cur.gazeAmt;
+
+    /* eyes */
+    const eyeW = 96;
+    const eyeH = cur.eyeH * (1 - lid * 0.92);
+    const sep  = 128;
+    const eyeY = cy - 40 + gy;
+    ctx.save();
+    ctx.shadowColor = `rgba(${glowCol},0.65)`;
+    ctx.shadowBlur = 34;
+    ctx.fillStyle = "#FFCE94";
+    for(const side of [-1, 1]){
+      ctx.save();
+      ctx.translate(cx + side*sep + gx, eyeY);
+      /* inner corners lift when concerned: left eye -tilt, right eye +tilt */
+      ctx.rotate(side * cur.tilt);
+      const r = Math.min(eyeW, eyeH) * 0.48;
+      roundRect(ctx, -eyeW/2, -eyeH/2, eyeW, eyeH, r);
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.restore();
+
+    /* mouth */
+    const mY = cy + 128 + gy*0.6;
+    const mW = 88;
+    ctx.save();
+    ctx.translate(cx + gx*0.8, mY);
+    ctx.strokeStyle = "#FFCE94";
+    ctx.lineWidth = 11;
+    ctx.lineCap = "round";
+    ctx.shadowColor = `rgba(${glowCol},0.5)`;
+    ctx.shadowBlur = 22;
+    const open = cur.mouthOpen;
+    if(open > 0.06){
+      /* speaking: soft ellipse whose height follows cadence */
+      const h = 10 + open * 34;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, mW*0.42, h, 0, 0, Math.PI*2);
+      ctx.stroke();
+    } else {
+      /* resting smile / flat concern */
+      ctx.beginPath();
+      ctx.moveTo(-mW/2, 0);
+      ctx.quadraticCurveTo(0, cur.smile, mW/2, 0);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    requestAnimationFrame(draw);
+  }
+
+  function roundRect(c, x, y, w, h, r){
+    r = Math.min(r, w/2, h/2);
+    c.beginPath();
+    c.moveTo(x+r, y);
+    c.arcTo(x+w, y,   x+w, y+h, r);
+    c.arcTo(x+w, y+h, x,   y+h, r);
+    c.arcTo(x,   y+h, x,   y,   r);
+    c.arcTo(x,   y,   x+w, y,   r);
+    c.closePath();
+  }
+
+  setState("rest");
+  requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>

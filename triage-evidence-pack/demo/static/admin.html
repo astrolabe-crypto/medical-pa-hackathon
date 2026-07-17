@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#1C1820">
+<title>Companion · Demo Control</title>
+<style>
+  :root{
+    --bg:#1C1820; --bg-raise:#272130; --line:#3A3242;
+    --glow:#F2B879; --glow-deep:#E09A55;
+    --ink:#F5EFE6; --ink-dim:#A99FA8;
+    --ok:#8FD0A8; --warn:#E8B04D; --bad:#E8734D;
+    --unit:8px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    background:var(--bg);color:var(--ink);
+    font-family:-apple-system,"Segoe UI",Roboto,sans-serif;
+    line-height:1.5;display:flex;justify-content:center;
+    padding:calc(var(--unit)*5) calc(var(--unit)*2);
+  }
+  .wrap{width:100%;max-width:600px}
+  h1{font-size:22px;font-weight:600;letter-spacing:.01em}
+  .sub{color:var(--ink-dim);font-size:13px;margin-top:4px}
+  .tag{
+    display:inline-block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--ink-dim);border:1px solid var(--line);border-radius:999px;
+    padding:3px 10px;margin-left:8px;vertical-align:middle;
+  }
+  .card{
+    background:var(--bg-raise);border:1px solid var(--line);border-radius:16px;
+    padding:calc(var(--unit)*3);margin-top:calc(var(--unit)*3);
+  }
+  .row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .status-dot{width:12px;height:12px;border-radius:50%;background:var(--ink-dim);flex:none}
+  .status-dot.live{background:var(--ok);box-shadow:0 0 10px var(--ok)}
+  .status-dot.mock{background:var(--warn)}
+  .status-main{font-size:18px;font-weight:600}
+  .status-meta{color:var(--ink-dim);font-size:13px;margin-top:6px;
+    font-family:ui-monospace,Consolas,monospace}
+  label{display:block;font-size:13px;color:var(--ink-dim);margin:calc(var(--unit)*2) 0 6px}
+  input[type=text],input[type=password]{
+    width:100%;font:inherit;font-size:15px;color:var(--ink);
+    background:#1E1A24;border:1px solid var(--line);border-radius:10px;
+    padding:11px 13px;outline:none;
+  }
+  input:focus{border-color:var(--glow-deep)}
+  .key-row{display:flex;gap:8px}
+  .key-row input{flex:1}
+  button{
+    font:inherit;font-size:15px;font-weight:600;cursor:pointer;
+    border-radius:10px;padding:11px 18px;border:1px solid var(--line);
+    background:#211C29;color:var(--ink);transition:border-color .15s,background .15s;
+  }
+  button:hover{border-color:var(--glow-deep)}
+  button.primary{background:var(--glow-deep);border-color:var(--glow-deep);color:#1C1820}
+  button.primary:hover{background:var(--glow)}
+  button.ghost{color:var(--ink-dim)}
+  .btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:calc(var(--unit)*3)}
+  .result{margin-top:calc(var(--unit)*2);font-size:14px;min-height:20px}
+  .result.ok{color:var(--ok)} .result.bad{color:var(--bad)} .result.warn{color:var(--warn)}
+  details{margin-top:calc(var(--unit)*2)}
+  summary{cursor:pointer;color:var(--ink-dim);font-size:13px;user-select:none}
+  .adv{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
+  .adv .full{grid-column:1 / -1}
+  .foot{color:var(--ink-dim);font-size:12.5px;margin-top:calc(var(--unit)*3);line-height:1.7}
+  .foot a{color:var(--glow);text-decoration:none}
+  .foot a:hover{text-decoration:underline}
+  .pill{font-size:12px;color:var(--ink-dim)}
+  code{font-family:ui-monospace,Consolas,monospace;color:var(--ink);background:#1E1A24;
+    border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Companion · Demo Control <span class="tag">local only</span></h1>
+  <div class="sub">Put your API key in and go live — no terminal. The key stays in memory only; it is never written to disk or git, and a restart clears it.</div>
+
+  <!-- current status -->
+  <div class="card">
+    <div class="row">
+      <span id="dot" class="status-dot"></span>
+      <span id="statusMain" class="status-main">Loading…</span>
+    </div>
+    <div id="statusMeta" class="status-meta"></div>
+  </div>
+
+  <!-- key + go live -->
+  <div class="card">
+    <div id="pinWrap" style="display:none">
+      <label for="pin">Admin PIN</label>
+      <input id="pin" type="password" placeholder="the DEMO_ADMIN_PIN you set" autocomplete="off">
+    </div>
+
+    <label for="key">OpenAI API key</label>
+    <div class="key-row">
+      <input id="key" type="password" placeholder="sk-…" autocomplete="off" spellcheck="false">
+      <button type="button" id="toggleKey" class="ghost" title="Show / hide">Show</button>
+    </div>
+    <div class="pill" id="keyHint" style="margin-top:6px"></div>
+
+    <details>
+      <summary>Advanced (endpoint · models · voice)</summary>
+      <div class="adv" style="margin-top:10px">
+        <div class="full">
+          <label for="base">Base URL</label>
+          <input id="base" type="text" placeholder="https://api.openai.com/v1">
+        </div>
+        <div>
+          <label for="chat">Chat model</label>
+          <input id="chat" type="text" placeholder="chat model id">
+        </div>
+        <div>
+          <label for="voice">TTS voice</label>
+          <input id="voice" type="text" placeholder="shimmer">
+        </div>
+        <div>
+          <label for="stt">STT model</label>
+          <input id="stt" type="text" placeholder="whisper-1">
+        </div>
+        <div>
+          <label for="tts">TTS model</label>
+          <input id="tts" type="text" placeholder="gpt-4o-mini-tts">
+        </div>
+      </div>
+    </details>
+
+    <div class="btn-row">
+      <button type="button" id="testBtn">Test connection</button>
+      <button type="button" id="liveBtn" class="primary">Save &amp; Go Live</button>
+      <button type="button" id="mockBtn" class="ghost">Switch to Mock (safe)</button>
+    </div>
+    <div id="result" class="result"></div>
+  </div>
+
+  <div class="foot">
+    Recommended before judges: paste key → <b>Test connection</b> (green) → <b>Save &amp; Go Live</b>.
+    Open device/nurse pages will switch automatically. One click to <b>Mock</b> reverts to the safe offline demo.<br>
+    Pages: <a href="/face" target="_blank">/face</a> · <a href="/" target="_blank">/ (orb)</a> · <a href="/nurse" target="_blank">/nurse</a> · <a href="/evidence" target="_blank">/evidence</a><br>
+    Live also uses STT + TTS. For the offline "call 111" safety clip, run <code>python -m demo.server.tts --prebuild</code> once with a key.
+  </div>
+</div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+let pinRequired = false;
+
+function hdrs(extra){
+  const h = Object.assign({ "Content-Type": "application/json" }, extra || {});
+  if(pinRequired && $("pin").value) h["X-Admin-Pin"] = $("pin").value.trim();
+  return h;
+}
+function setResult(msg, cls){ const r = $("result"); r.textContent = msg; r.className = "result " + (cls || ""); }
+
+function renderStatus(s){
+  pinRequired = !!s.pin_required;
+  $("pinWrap").style.display = pinRequired ? "block" : "none";
+  const live = s.mode === "live";
+  $("dot").className = "status-dot " + (live ? "live" : "mock");
+  $("statusMain").textContent = live
+    ? (s.live_ready ? "LIVE — real STT · model · TTS" : "LIVE — but no key set")
+    : "MOCK — offline, deterministic (safe)";
+  $("statusMeta").textContent =
+    `adapter ${s.adapter} · key ${s.key_hint || "none"} · chat ${s.chat_model} · voice ${s.tts_voice}`;
+  $("keyHint").textContent = s.has_key ? `A key is loaded (${s.key_hint}). Paste again to replace it.` : "No key loaded yet.";
+  // prefill advanced (never the key itself)
+  if(!$("base").value)  $("base").value  = s.base_url  || "";
+  if(!$("chat").value)  $("chat").value  = s.chat_model || "";
+  if(!$("voice").value) $("voice").value = s.tts_voice || "";
+  if(!$("stt").value)   $("stt").value   = s.stt_model || "";
+  if(!$("tts").value)   $("tts").value   = s.tts_model || "";
+}
+
+async function loadStatus(){
+  try{
+    const r = await fetch("/api/admin/status", { headers: hdrs() });
+    if(r.status === 403){ pinRequired = true; $("pinWrap").style.display = "block"; setResult("Enter the admin PIN, then Test or Save.", "warn"); return; }
+    renderStatus(await r.json());
+  }catch(e){ setResult("Could not reach the server. Is it running?", "bad"); }
+}
+
+function overrides(){
+  return {
+    api_key: $("key").value.trim() || undefined,
+    base_url: $("base").value.trim() || undefined,
+    chat_model: $("chat").value.trim() || undefined,
+    stt_model: $("stt").value.trim() || undefined,
+    tts_model: $("tts").value.trim() || undefined,
+    tts_voice: $("voice").value.trim() || undefined,
+  };
+}
+
+$("toggleKey").addEventListener("click", () => {
+  const k = $("key"); const show = k.type === "password";
+  k.type = show ? "text" : "password"; $("toggleKey").textContent = show ? "Hide" : "Show";
+});
+
+$("testBtn").addEventListener("click", async () => {
+  setResult("Testing the connection…", "");
+  try{
+    const r = await fetch("/api/admin/test", { method:"POST", headers: hdrs(),
+      body: JSON.stringify({ api_key: $("key").value.trim() || undefined,
+                             base_url: $("base").value.trim() || undefined,
+                             chat_model: $("chat").value.trim() || undefined }) });
+    const d = await r.json();
+    if(d.ok){
+      const modelMsg = d.chat_model_available
+        ? `chat model “${d.chat_model}” is available`
+        : `⚠ chat model “${d.chat_model}” not in the list — pick one that is`;
+      setResult(`✓ Connected (${d.latency_ms} ms, ${d.n_models} models). ${modelMsg}.`,
+                d.chat_model_available ? "ok" : "warn");
+    } else {
+      setResult("✗ " + (d.error || `HTTP ${d.status}`), "bad");
+    }
+  }catch(e){ setResult("✗ " + e, "bad"); }
+});
+
+$("liveBtn").addEventListener("click", async () => {
+  setResult("Going live…", "");
+  try{
+    const r = await fetch("/api/admin/config", { method:"POST", headers: hdrs(),
+      body: JSON.stringify(Object.assign({ mode:"live" }, overrides())) });
+    const d = await r.json();
+    if(!r.ok){ setResult("✗ " + (d.error || "failed"), "bad"); return; }
+    renderStatus(d);
+    $("key").value = "";   // clear the field once accepted (it's held server-side, in memory)
+    setResult("✓ Live. Open device/nurse pages will switch automatically.", "ok");
+  }catch(e){ setResult("✗ " + e, "bad"); }
+});
+
+$("mockBtn").addEventListener("click", async () => {
+  try{
+    const r = await fetch("/api/admin/config", { method:"POST", headers: hdrs(),
+      body: JSON.stringify({ mode:"mock" }) });
+    const d = await r.json();
+    if(!r.ok){ setResult("✗ " + (d.error || "failed"), "bad"); return; }
+    renderStatus(d);
+    setResult("Back on the safe offline demo (Mock).", "ok");
+  }catch(e){ setResult("✗ " + e, "bad"); }
+});
+
+loadStatus();
+</script>
+</body>
+</html>

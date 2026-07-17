@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Care Team — Triage Queue</title>
+  <link rel="stylesheet" href="/nurse-static/nurse.css" />
+</head>
+<body>
+  <!-- Panel strip: the scale story -->
+  <header id="panel-strip">
+    <div class="strip-title">Panel</div>
+    <div class="strip-figs">
+      <span class="fig"><b id="c-total">—</b> patients</span>
+      <span class="dot">·</span>
+      <span class="fig quiet"><b id="c-quiet">—</b> quiet</span>
+      <span class="dot">·</span>
+      <span class="fig watching"><b id="c-watching">—</b> watching</span>
+      <span class="dot">·</span>
+      <span class="fig review"><b id="c-review">—</b> need review</span>
+    </div>
+    <div class="strip-tag">Care Team · Demo environment</div>
+  </header>
+
+  <main id="board">
+    <!-- Triage queue (the core) -->
+    <section id="queue-col">
+      <h1 class="col-head">Triage queue</h1>
+      <ol id="queue"></ol>
+      <p id="queue-hint">R = reset queue · one AI watches the panel, a human approves the next action</p>
+    </section>
+
+    <!-- Detail pane -->
+    <section id="detail" class="empty">
+      <div id="detail-empty">Select a patient to review.</div>
+      <div id="detail-body" class="hidden">
+        <div class="d-head">
+          <div>
+            <h2 id="d-name">—</h2>
+            <div id="d-sub" class="d-sub">—</div>
+          </div>
+          <div id="d-badge" class="badge">—</div>
+        </div>
+
+        <div id="d-chips" class="chips"></div>
+
+        <div class="d-section">
+          <div class="d-label">What left the home</div>
+          <pre id="d-payload" class="payload">—</pre>
+        </div>
+
+        <div class="d-section">
+          <div class="d-label">The noticing <span id="d-rule" class="rule">—</span></div>
+          <canvas id="d-spark" width="520" height="150" aria-hidden="true"></canvas>
+          <div id="d-threshold" class="threshold">—</div>
+        </div>
+
+        <div class="d-section">
+          <div class="d-label">Device said to Margaret</div>
+          <p id="d-transcript" class="transcript">—</p>
+        </div>
+
+        <div id="d-actions" class="actions">
+          <button id="btn-callback" class="btn primary">Approve callback → tomorrow AM</button>
+          <button id="btn-gp" class="btn secondary">Escalate to GP now</button>
+        </div>
+        <div id="d-done" class="done hidden">—</div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/nurse-static/nurse.js"></script>
+</body>
+</html>

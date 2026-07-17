@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>Companion</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <main id="stage" aria-live="polite">
+    <canvas id="orb" width="520" height="520" aria-hidden="true"></canvas>
+    <p id="caption">Hold the space bar and speak.</p>
+    <div id="banner" class="hidden" role="status"></div>
+  </main>
+
+  <aside id="debug" class="hidden" aria-hidden="true">
+    <h2>pipeline</h2>
+    <dl>
+      <dt>adapter</dt><dd id="d-adapter">-</dd>
+      <dt>stt</dt><dd id="d-stt">-</dd>
+      <dt>guardrail</dt><dd id="d-guard">-</dd>
+      <dt>model &rarr; tier</dt><dd id="d-tier">-</dd>
+      <dt>route</dt><dd id="d-route">-</dd>
+      <dt>tts (first audio)</dt><dd id="d-tts">-</dd>
+    </dl>
+  </aside>
+
+  <p id="ambient" aria-hidden="true">-</p>
+  <canvas id="world" class="hidden" width="440" height="240" aria-hidden="true"></canvas>
+
+  <p id="hints">space/tap = talk &nbsp;·&nbsp; 1-4 = replay &nbsp;·&nbsp; A = advance days &nbsp;·&nbsp; S = timeline &nbsp;·&nbsp; R = reset &nbsp;·&nbsp; W = world &nbsp;·&nbsp; T = type &nbsp;·&nbsp; D = debug</p>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
