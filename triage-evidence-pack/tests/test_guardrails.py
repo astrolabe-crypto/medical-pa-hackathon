@@ -161,6 +161,21 @@ def test_refused_reading_forces_defer():
 def test_missing_reading_forces_defer():
     assert ev(reading_missing=True).forced_tier == DEFER
 
+def test_medication_change_request_forces_clinician_decision():
+    r = ev(symptoms=["medication_change_request"])
+    assert r.forced_tier == DEFER
+    assert "medication_change_requires_clinician" in r.rule_ids
+
+def test_atypical_acs_pattern_forces_urgent():
+    r = ev(symptoms=["atypical_acs"])
+    assert r.forced_tier == URGENT
+    assert "atypical_acs_pattern" in r.rule_ids
+
+def test_clinical_uncertainty_forces_clinician_decision():
+    r = ev(symptoms=["clinical_uncertainty"])
+    assert r.forced_tier == DEFER
+    assert "clinical_uncertainty_requires_clinician" in r.rule_ids
+
 
 # --- combine(): the floor semantics --------------------------------------
 
@@ -173,10 +188,10 @@ def test_combine_routine_floor_lifts_reassure_only():
     assert g.combine(REASSURE, r) == ROUTINE
     assert g.combine(URGENT, r) == URGENT       # model may go higher
 
-def test_combine_insufficient_data_defers_unless_model_urgent():
+def test_combine_insufficient_data_defers_even_if_model_escalates():
     r = ev(reading_refused=True)
     assert g.combine(REASSURE, r) == DEFER
-    assert g.combine(URGENT, r) == URGENT
+    assert g.combine(URGENT, r) == DEFER
 
 def test_combine_no_floor_passes_model_through():
     r = ev(spo2=98)

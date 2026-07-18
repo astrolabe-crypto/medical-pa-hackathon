@@ -1,12 +1,12 @@
-"""Piece 4 nurse queue: the server pieces are pure and offline-testable — the
-action-record + confirmation builders (mirroring _proactive_meta), the seed
-panel, and the backfill feed reader. The SSE round-trip itself is exercised in
-the browser (documented in the demo README rehearsal script)."""
+"""Care-team queue: pure, offline tests for audit records and backfill."""
 from __future__ import annotations
 
+import asyncio
 import json
 
 from demo.server import main
+from demo.server import scenarios
+from demo.server.router_adapter import MockRouter
 
 
 def test_panel_seed_is_believable_and_margaret_free():
@@ -49,13 +49,32 @@ def test_confirmation_meta_speaks_and_banners():
     assert "GP" in g["banner"] and g["spoken_response"]
 
 
+def test_escalation_log_writes_local_audit_and_structured_handoff(tmp_path, monkeypatch):
+    """The care-team audit preserves local wording separately from the handoff."""
+    log = tmp_path / "escalations.jsonl"
+    monkeypatch.setattr(main.demo_config, "ESCALATIONS_LOG", log)
+    scenario = scenarios.replays()["1"]
+    result = asyncio.run(MockRouter().route(
+        scenario["utterance"], scenario["patient_context"], scenario["sensor_data"]
+    ))
+
+    rec = main._log_escalation("talk", "Margaret's local demo wording", result)
+    written = json.loads(log.read_text(encoding="utf-8"))
+
+    assert rec == written
+    assert written["transcript"] == "Margaret's local demo wording"
+    assert written["tier"] == "URGENT"
+    assert written["scrubbed_payload"] == result.scrubbed_payload
+    assert "Margaret's local demo wording" not in written["scrubbed_payload"]
+
+
 def test_read_feed_splits_escalations_and_actions(tmp_path, monkeypatch):
     log = tmp_path / "escalations.jsonl"
     lines = [
         {"proactive": True, "rule_id": "hf_weight_red_flag", "tier": "URGENT",
          "scrubbed_payload": "Margaret ...", "spoken_response": "I've noticed ...",
          "evidence": {"delta_kg": 2.3}},
-        {"proactive": False, "source": "talk", "tier": "URGENT"},   # utterance-driven: not backfilled
+        {"proactive": False, "source": "talk", "tier": "URGENT"},
         {"type": "action", "action": "callback", "rule_id": "hf_weight_red_flag",
          "booked": "Callback booked - Sarah, 9:15am"},
     ]
@@ -63,9 +82,11 @@ def test_read_feed_splits_escalations_and_actions(tmp_path, monkeypatch):
     monkeypatch.setattr(main.demo_config, "ESCALATIONS_LOG", log)
 
     feed = main._read_feed()
-    assert len(feed["escalations"]) == 1
+    # A reconnecting nurse page sees both device-led and spoken-care alerts.
+    assert len(feed["escalations"]) == 2
     assert feed["escalations"][0]["rule_id"] == "hf_weight_red_flag"
     assert feed["escalations"][0]["spoken_response"].startswith("I've noticed")
+    assert feed["escalations"][1]["source"] == "talk"
     assert len(feed["actions"]) == 1
     assert feed["actions"][0]["booked"].startswith("Callback booked")
 

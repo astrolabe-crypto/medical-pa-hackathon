@@ -49,6 +49,25 @@ _PATTERNS = {
     ],
 }
 _COMPILED = {tier: [re.compile(p, re.I) for p in pats] for tier, pats in _PATTERNS.items()}
+_ROUTE_TAG = re.compile(r"^\s*ROUTE\s*:\s*(REASSURE|ROUTINE|URGENT|DEFER)\s*(?:\r?\n|$)", re.I)
+
+
+def declared_route(text: str) -> Optional[str]:
+    """Read the explicit machine-routing header, when a model supplied one.
+
+    The header lets the harness score the action independently from sensible
+    contingency wording in the patient-facing explanation (for example, a
+    REASSURE reply that says to contact a nurse *if* symptoms later change).
+    """
+    if not text:
+        return None
+    match = _ROUTE_TAG.match(text)
+    return match.group(1).upper() if match else None
+
+
+def without_declared_route(text: str) -> str:
+    """Remove the machine-routing header before a reply is shown or spoken."""
+    return _ROUTE_TAG.sub("", text or "", count=1).strip()
 
 
 def classify_keywords(text: str) -> Optional[str]:
@@ -57,6 +76,9 @@ def classify_keywords(text: str) -> Optional[str]:
     urgent tier among {ROUTINE, DEFER, REASSURE} that matched."""
     if not text:
         return None
+    explicit = declared_route(text)
+    if explicit:
+        return explicit
     hits = {tier: any(rx.search(text) for rx in rxs) for tier, rxs in _COMPILED.items()}
     if hits[URGENT]:
         return URGENT

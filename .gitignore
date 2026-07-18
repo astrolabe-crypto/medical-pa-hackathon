@@ -20,5 +20,21 @@ triage-evidence-pack/demo/world/margaret_state.yaml
 triage-evidence-pack/demo/replays/*.webm
 triage-evidence-pack/demo/replays/*.wav
 triage-evidence-pack/demo/replays/*.m4a
+triage-evidence-pack/demo/replays/tts-cache/
 !triage-evidence-pack/demo/replays/_fallback_unreachable.mp3
 !triage-evidence-pack/demo/replays/_proactive_*.mp3
+.env.local
+
+# --- Local agent/tool workspace: never part of the showcase repository ---
+/.agents/
+/.claude/
+/brag-output/
+/brag-output-v2/
+/skills-lock.json
+
+# --- Private hand-offs and machine-specific notes ---
+/SETUP-MAC.md
+/DEMO-RUNBOOK.md
+/*-handoff.md
+/compass_artifact_*.md
+/companion-face.html

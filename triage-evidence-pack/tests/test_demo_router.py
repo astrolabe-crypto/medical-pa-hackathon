@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 
 from demo.server import scenarios
-from demo.server.router_adapter import MockRouter
+from demo.server.router_adapter import MockRouter, is_clinical_turn
 from demo.server.symptoms import extract_symptoms, merge_symptoms
 from src.guardrails import REASSURE, ROUTINE, URGENT, DEFER
 
@@ -26,6 +26,14 @@ def test_extract_cyanosis():
 
 def test_extract_none_from_benign():
     assert extract_symptoms("feeling fine, just did my weight") == []
+
+
+def test_ordinary_chat_does_not_open_the_clinical_sensor_path():
+    assert not is_clinical_turn("Hello, could you tell me a gentle joke?")
+    assert not is_clinical_turn("What sort of weather do you enjoy?")
+    assert not is_clinical_turn("I slept well and had a lovely cup of tea.")
+    assert is_clinical_turn("My ankles are swollen and I feel breathless.")
+    assert is_clinical_turn("Should I change my water tablets?")
 
 def test_merge_unions_without_removing():
     merged = merge_symptoms({"symptoms": ["chest_pain"]}, "sleeping in the chair")
@@ -63,3 +71,11 @@ def test_scrubbed_payload_has_no_raw_transcript():
     # payload is built from structured fields; must not contain the utterance text
     assert "cold coming on" not in res.scrubbed_payload
     assert "Routed URGENT" in res.scrubbed_payload
+
+
+def test_presentation_turns_are_a_three_turn_urgent_conversation():
+    turns = [scenarios.presentation_turn(i) for i in range(3)]
+    assert [turn["id"] for turn in turns] == ["breathless", "pushback", "acting_now"]
+    assert all(_route(turn).tier == URGENT for turn in turns)
+    assert scenarios.presentation_turn(3)["id"] == "breathless"
+    assert all(len(turn["utterance"]) > 40 for turn in turns)  # readable presenter prompts

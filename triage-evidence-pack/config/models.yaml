@@ -8,7 +8,7 @@
 # To swap in any OpenAI-compatible endpoint (Nebius, OpenAI, local vLLM, etc.),
 # change base_url_env / model / provider only.
 
-version: models_v1
+version: models_v4
 
 # Deterministic-ish routing task settings.
 temperature: 0.2

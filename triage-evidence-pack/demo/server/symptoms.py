@@ -52,6 +52,22 @@ _PHRASES: dict[str, list[str]] = {
         r"had to help me", r"someone had to", r"couldn'?t manage (on |by )?my ?self",
     ],
     "vision_change": [r"vision (has |went |is )?(blurred|blurry|gone)", r"can'?t see (properly|right)"],
+    # Conservative clinician-only signals. These are not diagnoses: they make
+    # the routing layer hand the decision to a clinician, or raise a known
+    # emergency-pattern presentation.
+    "medication_change_request": [
+        r"\b(stop|skip|miss|change|increase|decrease|double|halve|adjust)\b.{0,45}\b(tablet|tablets|medicine|medication|dose|insulin|water pill)",
+        r"\b(how much|how many units)\b.{0,35}\b(insulin|medicine|medication|dose)",
+    ],
+    "atypical_acs": [
+        r"\b(nauseous|sick)\b.{0,70}\b(jaw|back|shoulder).{0,70}\b(ache|pain)",
+        r"\b(jaw|back|shoulder).{0,70}\b(ache|pain).{0,70}\b(nauseous|sick)",
+    ],
+    "clinical_uncertainty": [
+        r"\b(repeating myself|repeating meself|been a bit vague)\b",
+        r"\b(funny turn|came over all peculiar)\b",
+        r"\b(can'?t (really )?describe|hard to say|no idea what it was|not right somehow)\b",
+    ],
 }
 
 _COMPILED = {flag: [re.compile(p, re.I) for p in pats] for flag, pats in _PHRASES.items()}

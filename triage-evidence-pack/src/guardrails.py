@@ -289,6 +289,22 @@ def _rule_missing_reading(sensor: dict, t: dict, r: GuardrailResult) -> None:
         r.raise_floor(DEFER, "reading_missing_or_refused")
 
 
+def _rule_clinician_only_signals(sensor: dict, t: dict, r: GuardrailResult) -> None:
+    """Handle structured signals that cannot safely be autonomously routed.
+
+    These signals are supplied by the upstream assessment/extraction layer and
+    are deliberately conservative: they either require a clinician to make the
+    decision, or represent a recognised emergency-pattern presentation.
+    """
+    signals = _symptoms(sensor)
+    if "atypical_acs" in signals:
+        r.raise_floor(URGENT, "atypical_acs_pattern")
+    if "medication_change_request" in signals:
+        r.raise_floor(DEFER, "medication_change_requires_clinician")
+    if "clinical_uncertainty" in signals:
+        r.raise_floor(DEFER, "clinical_uncertainty_requires_clinician")
+
+
 _RULES = (
     _rule_bp_crisis,
     _rule_glucose,
@@ -298,6 +314,7 @@ _RULES = (
     _rule_news2,
     _rule_repeat_contact,
     _rule_missing_reading,
+    _rule_clinician_only_signals,
 )
 
 
@@ -317,15 +334,16 @@ def combine(model_tier: str, guard: GuardrailResult) -> str:
 
     - URGENT floor always wins (a hard red flag must escalate NOW, even if
       the model deferred).
-    - insufficient data forces DEFER, unless the model itself escalated to
-      URGENT (escalating on missing data is never the unsafe direction).
+    - insufficient data and clinician-only signals force DEFER unless a
+      deterministic URGENT rule also fired. An LLM must not turn uncertainty
+      into an emergency label by itself; the clinician makes that decision.
     - ROUTINE floor lifts REASSURE to ROUTINE and leaves everything else.
     The model can only ever RAISE the final tier, never lower it past a rule.
     """
     if guard.forced_tier == URGENT:
         return URGENT
     if guard.insufficient_data or guard.forced_tier == DEFER:
-        return URGENT if model_tier == URGENT else DEFER
+        return DEFER
     if guard.forced_tier == ROUTINE:
         return ROUTINE if model_tier == REASSURE else model_tier
     return model_tier

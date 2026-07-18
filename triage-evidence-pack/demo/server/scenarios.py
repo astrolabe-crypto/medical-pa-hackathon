@@ -73,6 +73,47 @@ def replays() -> dict[str, dict]:
     }
 
 
+def presentation_turn(index: int) -> dict:
+    """Return the next line in the offline, judge-facing conversation.
+
+    The presentation path is deliberately deterministic: it demonstrates a
+    genuine multi-turn safety decision without requiring a microphone, venue
+    Wi-Fi, or an API call.  Each turn still passes through the same mock
+    router, symptom extraction, guardrails, escalation log, and nurse panel as
+    the live path.  It is not labelled as a live transcription.
+    """
+    m = margaret()
+    turns = (
+        {
+            "id": "breathless",
+            "utterance": ("I've been having to sleep sitting up in the chair the last "
+                          "two nights. I can't catch my breath lying down."),
+            "patient_context": m["patient_context"],
+            "sensor_data": m["sensor_data"],
+            "expected_tier": "URGENT",
+        },
+        {
+            "id": "pushback",
+            "utterance": ("I don't want to bother anyone. Could I just wait until "
+                          "Monday and see how I feel?"),
+            "patient_context": m["patient_context"],
+            # The symptom established in the first turn is still true; a
+            # patient changing their mind must not erase the safety context.
+            "sensor_data": {**m["sensor_data"], "symptoms": ["orthopnoea"]},
+            "expected_tier": "URGENT",
+        },
+        {
+            "id": "acting_now",
+            "utterance": ("All right. My daughter is here and she is calling one one one "
+                          "with me now."),
+            "patient_context": m["patient_context"],
+            "sensor_data": {**m["sensor_data"], "symptoms": ["orthopnoea"]},
+            "expected_tier": "URGENT",
+        },
+    )
+    return dict(turns[index % len(turns)])
+
+
 def replay_audio_path(key: str) -> Path | None:
     for ext in ("webm", "wav", "mp3", "m4a"):
         p = config.REPLAYS_DIR / f"{key}.{ext}"

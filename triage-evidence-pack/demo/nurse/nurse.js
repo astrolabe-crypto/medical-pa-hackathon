@@ -34,10 +34,12 @@ function thresholdLine(rule_id, ev) {
   return "config/thresholds.yaml";
 }
 
-function margaretReason(ev) {
+function margaretReason(ev, alert) {
   ev = ev || {};
   if (ev.delta_kg != null)
     return `Weight +${ev.delta_kg} kg over ${ev.window_days ?? (ev.to_day - ev.from_day)} days — past the heart-failure red flag`;
+  if (alert && alert.source)
+    return `Live ${alert.source.replace(/:.*/, "")} triggered a ${alert.tier || "clinical"} safety route`;
   return "Device flagged a change worth a clinician's eye";
 }
 
@@ -64,6 +66,8 @@ fetch("/api/nurse/feed").then(r => r.json()).then(feed => {
         world = m.world || world;
         if (selectedId === "margaret") drawSpark();
       } else if (m.type === "proactive") {
+        arriveMargaret(m);
+      } else if (m.type === "reactive_escalation") {
         arriveMargaret(m);
       } else if (m.type === "action_confirmed") {
         applyBooked(m.rule_id, m.badge);
@@ -131,9 +135,9 @@ function margaretCard() {
   li.innerHTML =
     `<div class="card-top"><div class="card-name">${esc(MARGARET.name)} `
     + `<span class="card-age">${MARGARET.age}${MARGARET.sex}</span></div></div>`
-    + `<div class="card-reason">${esc(margaretReason(margaret.evidence))}</div>`
+    + `<div class="card-reason">${esc(margaretReason(margaret.evidence, margaret))}</div>`
     + `<div class="card-foot"><span class="card-contact">device escalation · just now</span></div>`;
-  li.querySelector(".card-foot").appendChild(badgeEl("URGENT", bk));
+  li.querySelector(".card-foot").appendChild(badgeEl(margaret.tier || "URGENT", bk));
   return li;
 }
 
@@ -160,6 +164,7 @@ function renderSeedDetail(p) {
   // background patients aren't the actionable beat: show reason, hide escalation-only blocks
   sectionOf($("d-payload")).classList.add("hidden");
   sectionOf($("d-spark")).classList.add("hidden");
+  sectionOf($("d-audit")).classList.add("hidden");
   sectionOf($("d-transcript")).classList.remove("hidden");
   $("d-transcript").textContent = p.reason;
   $("d-actions").classList.add("hidden");
@@ -172,8 +177,8 @@ function renderMargaretDetail() {
   const bk = booked[margaret.rule_id];
   $("d-name").textContent = MARGARET.name;
   $("d-sub").textContent = `${MARGARET.age}${MARGARET.sex} · device escalation · just now`;
-  $("d-badge").className = "badge " + (bk ? "booked" : "URGENT");
-  $("d-badge").textContent = bk || "URGENT";
+  $("d-badge").className = "badge " + (bk ? "booked" : (margaret.tier || "URGENT"));
+  $("d-badge").textContent = bk || margaret.tier || "URGENT";
   $("d-chips").innerHTML = MARGARET.conditions.map(c => `<span class="chip">${esc(c)}</span>`).join("");
 
   sectionOf($("d-payload")).classList.remove("hidden");
@@ -188,11 +193,26 @@ function renderMargaretDetail() {
   $("d-transcript").textContent = margaret.spoken_response
     ? "“" + margaret.spoken_response + "”" : "(transcript unavailable)";
 
+  sectionOf($("d-audit")).classList.remove("hidden");
+  const audit = [
+    `Trigger: ${margaret.source || (margaret.proactive ? "device monitoring" : "care alert")}`,
+    `Safety route: ${margaret.tier || "—"} · rule ${margaret.rule_id || "model/clinical review"}`,
+    `Guardrail floor: ${margaret.guardrail_floor || "none"} · model route: ${margaret.model_tier || "—"}`,
+    `AI path: ${margaret.adapter || "—"}${margaret.model_id ? " / " + margaret.model_id : ""}`,
+  ];
+  if (margaret.transcript) audit.push(`Resident said (local demo only): “${margaret.transcript}”`);
+  audit.push("Handoff sent: structured payload above; raw wording is not included in it.");
+  $("d-audit").textContent = audit.join("\n");
+
   // actions vs booked confirmation
   if (bk) {
     $("d-actions").classList.add("hidden");
     $("d-done").classList.remove("hidden");
     $("d-done").textContent = "✓ " + bk + " — confirmation sent to Margaret's device";
+  } else if (margaret.tier === "URGENT") {
+    $("d-actions").classList.add("hidden");
+    $("d-done").classList.remove("hidden");
+    $("d-done").textContent = "⚠ Urgent pathway — immediate 111/999 safety advice issued; care-team alert recorded.";
   } else {
     $("d-actions").classList.remove("hidden");
     $("d-done").classList.add("hidden");
@@ -243,10 +263,18 @@ function drawSpark() {
 // --- Margaret arrives / gets booked / board resets ------------------------
 function arriveMargaret(m, opts) {
   opts = opts || {};
-  if (margaret && margaret.rule_id === m.rule_id && !opts.silent) return;  // dedup live re-fire
+  // Ignore only the same event being re-delivered after SSE reconnects. A new
+  // spoken concern can legitimately hit the same clinical rule and should be
+  // visible to the care team.
+  if (margaret && margaret.rule_id === m.rule_id
+      && margaret.source === m.source && margaret.transcript === m.transcript
+      && !opts.silent) return;
   margaret = {
     rule_id: m.rule_id, tier: m.tier, evidence: m.evidence || {},
     scrubbed_payload: m.scrubbed_payload, spoken_response: m.spoken_response,
+    source: m.source, transcript: m.transcript, adapter: m.adapter,
+    model_id: m.model_id, model_tier: m.model_tier,
+    guardrail_floor: m.guardrail_floor, proactive: !!m.proactive,
     _silent: !!opts.silent,
   };
   if (m.world && m.world.history) world = m.world;   // proactive carries a world snapshot

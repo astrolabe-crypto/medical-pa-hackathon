@@ -92,6 +92,7 @@ body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 }
 .badge.ROUTINE { color: var(--routine); }
 .badge.URGENT  { color: var(--urgent); }
+.badge.DEFER   { color: var(--watch); }
 .badge.WATCH   { color: var(--watch); }
 .badge.booked  { color: var(--ok); border-style: solid; }
 
@@ -118,6 +119,13 @@ body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
   background: #0b0f0d; border: 1px solid #1f3226; border-radius: 10px;
   padding: 0.9rem 1.1rem; white-space: pre-wrap; word-break: break-word;
 }
+.audit {
+  margin: 0; font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 0.84rem; line-height: 1.55; color: #c6d5df;
+  background: #0b0f12; border: 1px solid var(--line); border-radius: 10px;
+  padding: 0.9rem 1.1rem; white-space: pre-wrap; word-break: break-word;
+}
+.audit-note { color: var(--ink-faint); letter-spacing: 0; text-transform: none; }
 #d-spark { width: 100%; max-width: 520px; height: auto; display: block;
   border: 1px solid var(--line); border-radius: 10px; background: #0b0f12; }
 .threshold { margin-top: 0.5rem; color: var(--ink-dim); font-size: 0.85rem;

@@ -11,7 +11,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from src import metrics as M
-from src import readability
+from src import readability, judge
 
 
 CAVEATS = [
@@ -79,7 +79,7 @@ def write_report(records, judgements, mode_metrics, models_cfg, out_dir: Path,
     lines.append("## Pinned configuration (recorded for reproducibility)\n")
     lines.append(f"- scenario bank: `bank_v1` (48 scenarios)")
     lines.append(f"- thresholds: `thresholds_v1`")
-    lines.append(f"- prompts: `system_local_v1`, `system_cloud_v1`, `judge_rubric_v1`")
+    lines.append(f"- prompts: `system_local_v4`, `system_cloud_v4`, `judge_rubric_v4`")
     lines.append(f"- temperature: {models_cfg['temperature']}, repeats per scenario: {models_cfg['n_repeats']}")
     lines.append(f"- local model: `{models_cfg['roles']['local']['model']}` | cloud: `{models_cfg['roles']['cloud']['model']}` | judge: `{models_cfg['roles']['judge']['model']}`")
     sn = _surrogate_note(models_cfg)
@@ -180,7 +180,7 @@ def write_report(records, judgements, mode_metrics, models_cfg, out_dir: Path,
         "modes": list(mode_metrics.keys()),
         "versions": {
             "bank": "bank_v1", "n_scenarios": n_scenarios, "thresholds": "thresholds_v1",
-            "prompts": ["system_local_v1", "system_cloud_v1", "judge_rubric_v1"],
+            "prompts": ["system_local_v4", "system_cloud_v4", "judge_rubric_v4"],
             "temperature": models_cfg["temperature"], "repeats": models_cfg["n_repeats"],
             "models": {r: models_cfg["roles"][r]["model"] for r in ("local", "cloud", "judge")},
         },
@@ -240,7 +240,7 @@ def write_report(records, judgements, mode_metrics, models_cfg, out_dir: Path,
                 "hold_status": j.hold_status if j else None,
                 "needs_human_review": j.needs_human_review if j else None,
                 "disagreement": j.disagreement if j else None,
-                "readability_fk": readability.flesch_kincaid_grade(rec.response_text) if rec.response_text else None,
+                "readability_fk": readability.flesch_kincaid_grade(judge.without_declared_route(rec.response_text)) if rec.response_text else None,
                 "latency_ms": round(rec.latency_ms, 1), "input_tokens": rec.input_tokens,
                 "output_tokens": rec.output_tokens, "error": rec.error,
             })

@@ -160,6 +160,16 @@ def test_readability_complex_sentence_high_grade():
            "immediate consultation with a cardiovascular specialist is unequivocally warranted.")
     assert readability.flesch_kincaid_grade(txt) > 10
 
+
+def test_readability_scores_patient_words_not_route_header():
+    rec = FakeRec(
+        "re_x", "clear_reassure", REASSURE,
+        response_text="ROUTE: REASSURE\nYou are safe at home today.",
+    )
+    mm = M.compute_mode([rec], [mk(rec, REASSURE)], "local")
+    assert mm.readability_total == 1
+    assert mm.readability_within == 1
+
 def test_kappa_perfect_agreement():
     pairs = [(True, True), (False, False), (True, True)]
     assert M._cohens_kappa(pairs) == 1.0

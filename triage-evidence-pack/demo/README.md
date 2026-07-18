@@ -22,14 +22,15 @@ pip install -r ../requirements.txt          # from repo root: pip install -r req
 # Offline demo (no key, no credits) — the safe default:
 DEMO_MODE=mock uvicorn demo.server.main:app --port 8000
 
-# Live pipeline (Whisper STT + guardrails + OpenAI chat + OpenAI TTS):
-DEMO_MODE=live OPENAI_API_KEY=sk-... uvicorn demo.server.main:app --port 8000
+# Live pipeline (ElevenLabs STT/TTS + guardrails + Anthropic chat):
+DEMO_MODE=live ANTHROPIC_API_KEY=... ELEVENLABS_API_KEY=... uvicorn demo.server.main:app --port 8000
 ```
 
 Then open http://localhost:8000 . Live mode fails loud at startup if no key is set.
 
-Optional env: `OPENAI_BASE_URL` (default OpenAI), `DEMO_CHAT_MODEL`,
-`DEMO_STT_MODEL`, `DEMO_TTS_MODEL`, `DEMO_TTS_VOICE`.
+The demo reads a project `.env` when launched from Finder. Typical optional
+settings are `DEMO_LLM_PROVIDER=anthropic`, `DEMO_TTS_PROVIDER=elevenlabs`,
+`DEMO_CHAT_MODEL`, `ELEVENLABS_MODEL`, and `ELEVENLABS_VOICE_ID`.
 
 ### One-time build step for the offline safety net
 
@@ -127,7 +128,8 @@ http://localhost:8000/nurse     # care team (switched to at the beat)
 - **Panel strip** carries the scale story: `247 patients · 231 quiet · 12 watching · 4 need review`. Margaret's arrival bumps the counts live.
 - **Queue** seeds 8 believable background patients (COPD sputum change, T2DM ketones, BP recheck, adherence slip, data gap…), all amber/grey. Margaret is **not** seeded — she arrives via SSE at the top with a red badge and a single calm pulse.
 - **Detail pane** shows the scrubbed payload exactly as transmitted ("What left the home" — the privacy architecture made visible), the drift evidence window as a sparkline with the flag marker, the `rule_id` + threshold source (`ESC / BHF: > 2 kg / 3 days`), and the device's spoken transcript.
-- **The one interaction:** *Approve callback → tomorrow AM* (or *Escalate to GP now*). Clicking it books the card, appends an `action` record to `escalations.jsonl`, and pushes a confirmation back over SSE — **the kiosk banner updates and the device speaks a one-line confirmation to Margaret.** Closed loop, both screens.
+- **Live audit trail** makes each care event explainable: trigger source, safety route/rule, guardrail floor, model route/provider, a clearly labelled local-demo copy of Margaret's words, and the fact that only the structured payload is handed off. Conversation-led alerts and device-led alerts use the same live SSE stream and reconnecting nurse tabs backfill both.
+- **Urgent events** show the immediate 111/999 safety-pathway status and record the care-team alert. The callback/GP controls remain for non-urgent care-team review, rather than implying a callback replaces urgent advice.
 
 Nurse-page keys: **R** = reset queue to seed (archives + clears the log; pairs with the kiosk world reset, and clears both windows). Clicking a background card shows its summary; the action buttons are Margaret's beat only.
 
@@ -142,9 +144,9 @@ at **1920×1080** and at a projector-typical **1366×768** first.
 
 1. **Kiosk, set the scene:** "This is Margaret's device — quiet all week." Press **A** twice → Day 6, still quiet ("doesn't cry wolf"). *(Piece 3.)*
 2. **Kiosk, the notice:** press **A** until Day ≥ 13. Drift crosses the red flag → orb warms, 2-second beat, the device **speaks first** and the amber banner shows the payload. *(Piece 3.)*
-3. **Switch to the nurse window.** Margaret has slotted to the **top of the queue**, red URGENT, counts bumped to `5 need review`. She's auto-selected: scrubbed payload, the climbing weight sparkline with the ▲ flag marker, `ESC / BHF: > 2 kg / 3 days`, and her transcript.
-4. **The human decision:** click **Approve callback → tomorrow AM**. Card badge flips green ("Callback booked · Sarah, 9:15am").
-5. **Switch back to the kiosk** (or watch both): banner reads "✓ Nurse Sarah will ring tomorrow at 9:15am" and **the device speaks the confirmation to Margaret.** One AI, one nurse, hundreds of patients, closed loop.
+3. **Switch to the nurse window.** Margaret has slotted to the **top of the queue**, red URGENT, counts bumped to `5 need review`. She's auto-selected: scrubbed payload, the climbing weight sparkline with the ▲ flag marker, `ESC / BHF: > 2 kg / 3 days`, and the new live audit trail. It makes the model path and the guardrail floor visible without putting Margaret's raw wording into the handoff.
+4. **Show the safety boundary:** the urgent card records that immediate 111/999 advice has been issued and the care-team alert is logged. This is deliberately not presented as a routine callback.
+5. **For a spoken-care example**, say or type: “I am short of breath even sitting still and my ankles are swollen.” The nurse card updates immediately with the conversation trigger, the URGENT rule, guardrail floor, and structured handoff.
 6. **Open the third tab, `/evidence` — "none of this was luck."** Arrow-key through: the PASS verdict with the four hard gates at zero, what was tested, the bugs the harness found-and-fixed, the NHS-111 benchmark, and the honesty block. This converts "nice demo" into "they ran a safety evaluation first."
 7. **Reset for the next judge:** **R** on the kiosk or nurse window returns both to a clean slate.
 

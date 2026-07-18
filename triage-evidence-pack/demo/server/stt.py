@@ -1,6 +1,6 @@
-"""OpenAI transcription wrapper (httpx multipart). Sends the recorded clip
-(webm/opus from MediaRecorder) as-is; UK-English hint. Returns a structured
-result the UI turns into a spoken retry prompt on failure -- never a stack trace.
+"""Provider-neutral transcription wrapper (httpx multipart). Sends the recorded
+clip (webm/opus from MediaRecorder) as-is; returns a structured result the UI
+turns into a spoken retry prompt on failure -- never a stack trace.
 """
 from __future__ import annotations
 
@@ -26,10 +26,15 @@ async def transcribe(audio_bytes: bytes, filename: str, cfg: demo_config.Config,
     t0 = time.perf_counter()
     if not audio_bytes:
         return STTResult(None, False, "empty audio")
-    url = f"{cfg.openai_base_url}/audio/transcriptions"
     files = {"file": (filename or "clip.webm", audio_bytes, content_type)}
-    data = {"model": cfg.stt_model, "language": "en"}
-    headers = {"Authorization": f"Bearer {cfg.openai_api_key}"}
+    if cfg.stt_provider == "elevenlabs":
+        url = "https://api.elevenlabs.io/v1/speech-to-text"
+        data = {"model_id": cfg.stt_model, "language_code": "eng"}
+        headers = {"xi-api-key": cfg.elevenlabs_api_key or ""}
+    else:
+        url = f"{cfg.openai_base_url}/audio/transcriptions"
+        data = {"model": cfg.stt_model, "language": "en"}
+        headers = {"Authorization": f"Bearer {cfg.openai_api_key}"}
     try:
         async with httpx.AsyncClient(timeout=60) as client:
             resp = await client.post(url, files=files, data=data, headers=headers)

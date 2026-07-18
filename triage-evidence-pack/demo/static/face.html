@@ -111,7 +111,7 @@
     transition:opacity .35s ease;
   }
   footer.hidden{opacity:0;pointer-events:none}
-  #hint{ font-size:12.5px;color:var(--ink-dim);opacity:.6;letter-spacing:.02em;text-align:center; }
+  #hint{ font-size:12.5px;color:var(--ink-dim);opacity:.6;letter-spacing:.02em;text-align:center;max-width:720px;line-height:1.5; }
   #hint b{color:var(--ink-dim);font-weight:700}
 
   /* ---------- chrome toggle ---------- */
@@ -180,7 +180,7 @@
 <div id="banner" class="hidden"></div>
 
 <footer id="controls">
-  <div id="hint">Hold <b>Space</b> to talk · <b>1–4</b> scenarios · <b>A</b> days pass · <b>W</b> the maths · <b>D</b> debug · <b>H</b> hide</div>
+  <div id="hint">Presentation mode: press <b>Space</b> to advance Margaret's three-turn conversation · <b>T</b> type a different scenario · <b>1–4</b> safety replays · <b>A</b> days pass · <b>W</b> the maths · <b>H</b> hide</div>
 </footer>
 
 <div id="ambient"></div>
@@ -213,7 +213,7 @@
   const NAME = params.get("name") || "Margaret";
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const sleep = ms => new Promise(r => setTimeout(r, ms));
-  const FALLBACK_LINE = "I can't reach your care team right now. If this feels urgent, please call 111.";
+  const FALLBACK_LINE = "I can't reach your care team right now. If this feels urgent, please call one one one.";
 
   /* ---------------- DOM ---------------- */
   const timeEl    = document.getElementById("time");
@@ -238,11 +238,14 @@
   tickClock(); setInterval(tickClock, 10000);
 
   /* ---------------- config ---------------- */
-  let MODE = "mock", ADAPTER = "mock";
+  let MODE = "mock", ADAPTER = "mock", TTS_ENABLED = false, PRESENTATION_NEXT = "";
   let REPLAYS = {};
   fetch("/api/config").then(r => r.json()).then(cfg => {
     MODE = cfg.mode; ADAPTER = cfg.adapter; REPLAYS = cfg.replays || {};
-    setDebug({ adapter: `${cfg.adapter} (${cfg.mode})` });
+    TTS_ENABLED = Boolean(cfg.tts_enabled);
+    PRESENTATION_NEXT = cfg.presentation_next || "";
+    setDebug({ adapter: `${cfg.adapter} (${cfg.mode})`, tts: cfg.tts_provider || "browser" });
+    if(state === "rest") setCaption(idlePrompt(), true);
   }).catch(() => {});
 
   /* ===================================================================
@@ -423,7 +426,12 @@
     const map = { adapter:"d-adapter", stt:"d-stt", guard:"d-guard", tier:"d-tier", route:"d-route", tts:"d-tts" };
     for(const key in kv){ const el = document.getElementById(map[key]); if(el) el.textContent = kv[key]; }
   }
-  function toIdle(){ setFace("rest"); hideStatus(); setCaption("Hold the space bar and speak.", true); }
+  function idlePrompt(){
+    if(MODE !== "mock") return "Hold the space bar and speak.";
+    if(PRESENTATION_NEXT) return `Margaret will say: “${PRESENTATION_NEXT}”  Press Space to continue.`;
+    return "Presentation mode — press Space for Margaret's next line.";
+  }
+  function toIdle(){ setFace("rest"); hideStatus(); setCaption(idlePrompt(), true); }
 
   /* ---------------- speech out (mouth synced to real audio) ---------------- */
   async function speak(text, concerned){ return speakWith(text, concerned, null); }
@@ -439,7 +447,7 @@
   }
   async function defaultSpeak(text){
     if(!text) return;
-    if(MODE === "live"){ try { return await streamTts(text); } catch(e){ /* fall through */ } }
+    if(TTS_ENABLED){ try { return await streamTts(text); } catch(e){ /* fall through */ } }
     return browserSpeak(text);
   }
   function browserSpeak(text){
@@ -491,7 +499,7 @@
     return browserSpeak(FALLBACK_LINE);
   }
   async function playProactive(meta){
-    if(MODE === "live"){ try { return await streamTts(meta.spoken_response); }catch{} }
+    if(TTS_ENABLED){ try { return await streamTts(meta.spoken_response); }catch{} }
     try{ const r = await fetch("/api/proactive-audio?rule_id="+encodeURIComponent(meta.rule_id)); if(r.ok){ const b = await r.arrayBuffer(); setDebug({ tts:"proactive mp3" }); return await playArrayBuffer(b); } }catch{}
     return browserSpeak(meta.spoken_response);
   }
@@ -527,7 +535,10 @@
       toIdle(); return;
     }
 
-    if(meta.transcript){ setCaption("“" + meta.transcript + "”", true); await sleep(700); }
+    if(meta.presentation && meta.presentation.next_utterance){
+      PRESENTATION_NEXT = meta.presentation.next_utterance;
+    }
+    if(meta.transcript){ setCaption("Margaret says: “" + meta.transcript + "”", true); await sleep(700); }
 
     if(meta.degraded || meta.use_fallback_audio){
       showBanner("Couldn't reach your care team — advising 111");
@@ -554,6 +565,13 @@
   async function ensureMic(){ if(stream) return stream; stream = await navigator.mediaDevices.getUserMedia({ audio:true }); return stream; }
   async function startTalk(){
     if(talking || busy) return;
+    if(MODE !== "live"){
+      setFace("think"); hideBanner(); setCaption("Margaret is speaking…", true);
+      const fd = new FormData();
+      fd.append("audio", new Blob([], { type:"audio/webm" }), "presentation.webm");
+      await handleMeta(fetch("/api/talk", { method:"POST", body:fd }));
+      return;
+    }
     try{ await ensureMic(); }catch(e){ setCaption("I need microphone access to listen."); return; }
     talking = true; chunks = [];
     recorder = new MediaRecorder(stream);
@@ -632,14 +650,21 @@
     setFace("think"); setCaption("…", true);
     try{
       const resp = await fetch("/api/world/advance", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ days:3 }) });
+      if(!resp.ok) throw new Error("world advance failed");
       const data = await resp.json();
+      if(data.error) throw new Error(data.error);
       if(!data.proactive){
-        setFace("rest"); setCaption("All quiet — nothing to mention.", true);
-        setTimeout(() => { if(state === "rest") setCaption("Hold the space bar and speak.", true); }, 1800);
+        setFace("rest");
+        setCaption(`Day ${data.day}: all quiet — press A again to continue Margaret's week.`, true);
+        setTimeout(() => { if(state === "rest") setCaption("Hold the space bar and speak.", true); }, 2600);
       } else if(!("EventSource" in window)){
         await onProactive(data.proactive);    // SSE-unsupported fallback
       }
-    }catch(e){ toIdle(); }
+    }catch(e){
+      setFace("rest");
+      setCaption("The demo connection paused — please press A again.", true);
+      setTimeout(() => { if(state === "rest") setCaption(idlePrompt(), true); }, 2600);
+    }
     finally{ advancing = false; }
   }
   async function cycleWorld(){
@@ -648,7 +673,7 @@
     setDebug({ adapter: `${ADAPTER} (${MODE}) · timeline ${d.timeline}` });
   }
   async function resetWorld(){ await fetch("/api/world/reset", { method:"POST" }); clearKiosk(); }
-  function clearKiosk(){ hideBanner(); hideStatus(); setFace("rest"); setCaption("Hold the space bar and speak.", true); }
+  function clearKiosk(){ hideBanner(); hideStatus(); setFace("rest"); setCaption(idlePrompt(), true); }
 
   /* the proactive moment — the device notices and speaks first */
   async function onProactive(meta){
@@ -740,7 +765,7 @@
 
   /* first paint */
   setFace("rest");
-  setCaption("Hold the space bar and speak.", true);
+  setCaption(idlePrompt(), true);
 })();
 </script>
 </body>

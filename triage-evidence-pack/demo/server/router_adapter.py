@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import sys
 import time
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, Protocol
@@ -79,6 +80,33 @@ _PROACTIVE_DEFAULT = ("Margaret, I've noticed something in your readings I'd lik
 # --- shared helpers -------------------------------------------------------
 
 _ESCALATION_TIERS = {URGENT, DEFER}
+
+# A companion should not turn ordinary conversation into a medical assessment.
+# The hard red-flag extractor remains the first signal; this second list catches
+# the everyday health vocabulary that should deliberately enter the triage path.
+_CLINICAL_TURN = re.compile(
+    r"\b(health|healthier|symptom|symptoms|pain|ache|breath|breathing|dizzy|"
+    r"faint|swollen|swelling|ankle|weight|weigh|reading|blood pressure|oxygen|"
+    r"sugar|glucose|insulin|tablet|tablets|medicine|medication|dose|water pill|"
+    r"doctor|gp|nurse|hospital|ambulance|heart|chest|cough|temperature|fever|"
+    r"unwell|ill|sick)\b", re.I)
+
+
+def is_clinical_turn(utterance: str) -> bool:
+    """True only when the person raises health/safety content.
+
+    This separates warm small-talk from clinical triage. It is deliberately
+    broad on health language, while ordinary weather, jokes, greetings, and
+    hobbies stay outside the sensor/guardrail routing path.
+    """
+    return bool(extract_symptoms(utterance) or _CLINICAL_TURN.search(utterance or ""))
+
+
+_SOCIAL_SYSTEM = """You are a warm, trustworthy home companion for an older adult named Margaret.
+Have a normal, friendly conversation: greetings, light jokes, memories, hobbies, food, music,
+and feelings are welcome. Do not bring up health readings, weight, diagnoses, or care teams unless
+Margaret has asked about health. Do not claim to know live weather or other facts you cannot check.
+Use UK English, at most two short sentences, and finish with a gentle conversational question when natural."""
 
 
 def _floor(utterance: str, sensor_data: dict):
@@ -186,7 +214,13 @@ class MockRouter:
         else:
             tier = REASSURE
         latency = (time.perf_counter() - t0) * 1000
-        return _result(tier, _CANNED[tier], guard, merged, symptoms,
+        spoken = _CANNED[tier]
+        # A natural closing turn for the offline presentation conversation.
+        # The tier remains URGENT and the real guardrail decision is unchanged.
+        if tier == URGENT and "calling one one one" in low:
+            spoken = ("Thank you. Stay sitting upright while you wait for help. "
+                      "Your care team has the important details.")
+        return _result(tier, spoken, guard, merged, symptoms,
                        patient_context, latency, self.adapter, model_tier=tier)
 
     async def proactive(self, flag, patient_context, sensor_data) -> RouteResult:
@@ -198,18 +232,31 @@ class MockRouter:
 
 class LiveRouter:
     """Reuses the harness: guardrails (floor) -> pinned cloud prompt via the
-    OpenAI-compatible provider -> keyword judge -> guardrails.combine."""
+    selected LLM provider -> keyword judge -> guardrails.combine."""
     adapter = "live"
 
     def __init__(self, cfg: demo_config.Config):
         from src import runner  # reuse the provider + user-message renderer
         self._runner = runner
         self.cfg = cfg
-        self.provider = runner.OpenAICompatibleProvider(cfg.openai_base_url, cfg.openai_api_key)
+        if cfg.llm_provider == "anthropic":
+            self.provider = runner.AnthropicProvider(cfg.anthropic_api_key or "", cfg.anthropic_base_url)
+        else:
+            self.provider = runner.OpenAICompatibleProvider(cfg.openai_base_url, cfg.openai_api_key or "")
         self.system_prompt = (demo_config.REPO_ROOT / "config" / "prompts"
                               / "system_cloud_v1.md").read_text(encoding="utf-8")
+        # The model may receive many readings, but it must not round, calculate,
+        # or paraphrase a clinical measurement in a patient-facing sentence.
+        # Guardrails make the routing decision; spoken wording stays qualitative.
+        self.system_prompt += (
+            "\n\nLIVE DEMO SPOKEN-WORD RULE: Do not state, round, calculate, or "
+            "compare any clinical measurement (for example weight, oxygen, pulse, "
+            "blood pressure, glucose, or a number of days). Say that a reading has "
+            "changed or needs checking instead. Emergency phone numbers are allowed.")
 
     async def route(self, utterance, patient_context, sensor_data) -> RouteResult:
+        if not is_clinical_turn(utterance):
+            return await self._social(utterance)
         t0 = time.perf_counter()
         guard, merged, symptoms = _floor(utterance, sensor_data)
         pseudo_scenario = {"utterance": utterance, "sensor_data": merged,
@@ -225,9 +272,25 @@ class LiveRouter:
         model_tier = harness_judge.classify_keywords(text) or guard.forced_tier or DEFER
         tier = guardrails.combine(model_tier, guard)
         latency = (time.perf_counter() - t0) * 1000
-        return _result(tier, text.strip(), guard, merged, symptoms,
+        return _result(tier, harness_judge.without_declared_route(text), guard, merged, symptoms,
                        patient_context, latency, self.adapter,
                        model_tier=model_tier, model_id=model_id)
+
+    async def _social(self, utterance: str) -> RouteResult:
+        """Run a normal conversation turn without sending clinical sensor data."""
+        t0 = time.perf_counter()
+        text, _usage, model_id = await self._runner.call_with_retry(
+            self.provider, max_retries=self.cfg_retries(), system=_SOCIAL_SYSTEM,
+            messages=[{"role": "user", "content": utterance}],
+            model=self.cfg.chat_model, scenario={"id": "social"}, turn=1,
+            temperature=0.6, max_tokens=100, timeout=60,
+        )
+        return RouteResult(
+            tier=REASSURE, spoken_response=harness_judge.without_declared_route(text),
+            guardrail_triggered=False, rule_id=None, scrubbed_payload="",
+            latency_ms=(time.perf_counter() - t0) * 1000,
+            guardrail_floor=None, model_tier="SOCIAL", symptoms=[],
+            adapter=self.adapter, model_id=model_id, escalate=False)
 
     async def proactive(self, flag, patient_context, sensor_data) -> RouteResult:
         """Generate the proactive utterance through the validated cloud pipeline
@@ -257,7 +320,7 @@ class LiveRouter:
                 model=self.cfg.chat_model, scenario={"id": "proactive"}, turn=1,
                 temperature=0.3, max_tokens=200, timeout=60,
             )
-            spoken = text.strip()
+            spoken = harness_judge.without_declared_route(text)
         except Exception:
             spoken = PROACTIVE_CANNED.get(flag.get("rule_id"), _PROACTIVE_DEFAULT)
             model_id = None
@@ -272,6 +335,6 @@ class LiveRouter:
 def build_router(cfg: demo_config.Config) -> RouterAdapter:
     """LiveRouter only when explicitly in live mode WITH a key; MockRouter
     otherwise (default, offline, no credits)."""
-    if cfg.live and cfg.openai_api_key:
+    if cfg.live and cfg.llm_ready:
         return LiveRouter(cfg)
     return MockRouter()

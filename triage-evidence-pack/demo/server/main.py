@@ -21,7 +21,7 @@ import time
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, Request, UploadFile
-from fastapi.responses import (FileResponse, JSONResponse, StreamingResponse)
+from fastapi.responses import (FileResponse, JSONResponse, RedirectResponse, StreamingResponse)
 from fastapi.staticfiles import StaticFiles
 
 from . import config as demo_config
@@ -30,6 +30,7 @@ from .router_adapter import build_router
 
 cfg = demo_config.load_config()
 router = build_router(cfg)
+_presentation_turn = 0
 
 from src.guardrails import URGENT, DEFER   # noqa: E402  (path set up in router_adapter)
 ESCALATION_TIERS = {URGENT, DEFER}
@@ -57,24 +58,48 @@ app.mount("/static", StaticFiles(directory=str(demo_config.STATIC_DIR)), name="s
 app.mount("/nurse-static", StaticFiles(directory=str(demo_config.NURSE_DIR)), name="nurse-static")
 app.mount("/evidence-static", StaticFiles(directory=str(demo_config.EVIDENCE_DIR)), name="evidence-static")
 
-print(f"[demo] mode={cfg.mode} adapter={router.adapter} chat_model={cfg.chat_model} "
-      f"stt={cfg.stt_model} tts={cfg.tts_model}/{cfg.tts_voice}")
+print(f"[demo] mode={cfg.mode} adapter={router.adapter} llm={cfg.llm_provider}/{cfg.chat_model} "
+      f"stt={cfg.stt_provider}/{cfg.stt_model} tts={cfg.tts_provider}/{cfg.tts_voice}")
 
 
 # --- helpers --------------------------------------------------------------
 
-def _log_escalation(source: str, transcript: str, result) -> None:
+def _log_escalation(source: str, transcript: str, result) -> dict:
     rec = {
         "ts": time.time(), "source": source, "transcript": transcript,
         "tier": result.tier, "guardrail_triggered": result.guardrail_triggered,
         "rule_id": result.rule_id, "scrubbed_payload": result.scrubbed_payload,
         "spoken_response": result.spoken_response,          # what the device said (Piece 4 backfill)
         "adapter": result.adapter,
+        "model_id": result.model_id,
+        "model_tier": result.model_tier,
+        "guardrail_floor": result.guardrail_floor,
+        "symptoms": result.symptoms,
         "proactive": getattr(result, "proactive", False),
         "evidence": getattr(result, "rule_evidence", {}),   # drift window for Piece 4
     }
     with open(demo_config.ESCALATIONS_LOG, "a", encoding="utf-8") as f:
         f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    return rec
+
+
+def _reactive_escalation_meta(rec: dict) -> dict:
+    """A local-only SSE event for the care-team display.
+
+    The structured payload is the handoff; original resident wording is visibly
+    labelled as a local demo audit item, never folded into that payload.
+    """
+    return {
+        "type": "reactive_escalation", "source": rec["source"],
+        "transcript": rec["transcript"], "tier": rec["tier"],
+        "rule_id": rec["rule_id"], "scrubbed_payload": rec["scrubbed_payload"],
+        "spoken_response": rec["spoken_response"], "adapter": rec["adapter"],
+        "model_id": rec.get("model_id"), "model_tier": rec.get("model_tier"),
+        "guardrail_floor": rec.get("guardrail_floor"),
+        "guardrail_triggered": rec.get("guardrail_triggered"),
+        "symptoms": rec.get("symptoms") or [], "evidence": rec.get("evidence") or {},
+        "proactive": False,
+    }
 
 
 # --- Piece 4: nurse actions (deterministic; determinism over realism) -----
@@ -115,9 +140,11 @@ def _action_confirmed_meta(action: str, rule_id: str) -> dict:
 
 
 def _read_feed(limit: int = 50) -> dict:
-    """Recent proactive escalations + nurse actions from the log, so the nurse
-    page can backfill Margaret (and any booked badge) if it connects/reconnects
-    after the beat already fired. Read-only; never blocks the kiosk."""
+    """Recent care alerts + nurse actions for a reconnecting nurse page.
+
+    Both sensor-led and conversation-led escalations are preserved: the queue
+    is an audit view of the same care event, not a second triage engine.
+    """
     escalations, actions = [], []
     log = demo_config.ESCALATIONS_LOG
     if log.exists():
@@ -129,12 +156,12 @@ def _read_feed(limit: int = 50) -> dict:
                 continue
             if rec.get("type") == "action":
                 actions.append(rec)
-            elif rec.get("proactive"):
+            elif rec.get("tier") in ESCALATION_TIERS:
                 escalations.append(rec)
     return {"escalations": escalations, "actions": actions}
 
 
-def _meta(transcript, result, stt_ms=0.0, followup=None, degraded=False,
+def _meta(transcript, result, stt_ms=0.0, followup=None, presentation=None, degraded=False,
           use_fallback_audio=False, error=None, retry=False):
     return {
         "transcript": transcript,
@@ -151,7 +178,7 @@ def _meta(transcript, result, stt_ms=0.0, followup=None, degraded=False,
         "model_id": result.model_id if result else None,
         "timings": {"stt_ms": round(stt_ms, 1),
                     "route_ms": round(result.latency_ms, 1) if result else 0.0},
-        "followup": followup,
+        "followup": followup, "presentation": presentation,
         "degraded": degraded, "use_fallback_audio": use_fallback_audio,
         "error": error, "retry": retry,
     }
@@ -165,7 +192,8 @@ async def _route_or_degrade(utterance, patient_context, sensor_data, source, tra
         return JSONResponse(_meta(transcript, None, stt_ms=stt_ms, degraded=True,
                                   use_fallback_audio=True, error=str(e)))
     if result.tier in ESCALATION_TIERS:
-        _log_escalation(source, transcript, result)
+        rec = _log_escalation(source, transcript, result)
+        broadcast(_reactive_escalation_meta(rec))
     return JSONResponse(_meta(transcript, result, stt_ms=stt_ms))
 
 
@@ -173,7 +201,10 @@ async def _route_or_degrade(utterance, patient_context, sensor_data, source, tra
 
 @app.get("/")
 async def index():
-    return FileResponse(str(demo_config.STATIC_DIR / "index.html"))
+    # Keep one judge-facing interaction.  The legacy orb kiosk uses the old
+    # microphone mock path; sending the root URL to the face prevents a
+    # presenter accidentally opening that confusing experience.
+    return RedirectResponse(url="/face", status_code=307)
 
 
 @app.get("/face")
@@ -220,7 +251,12 @@ async def api_nurse_action(request: Request):
 @app.get("/api/config")
 async def api_config():
     reps = {k: v["label"] for k, v in scenarios.replays().items()}
-    return {"mode": cfg.mode, "adapter": router.adapter, "replays": reps}
+    next_turn = scenarios.presentation_turn(_presentation_turn)
+    return {"mode": cfg.mode, "adapter": router.adapter, "replays": reps,
+            "tts_enabled": cfg.tts_enabled, "tts_provider": cfg.tts_provider,
+            # The face shows this before Space is pressed, so a presenter or
+            # judge can read Margaret's line instead of guessing what happens.
+            "presentation_next": next_turn["utterance"]}
 
 
 # --- Admin control page: put the API key in / go live, no terminal ---------
@@ -240,11 +276,12 @@ def _mask_key(k: str | None) -> str | None:
 
 def _admin_status() -> dict:
     return {
-        "mode": cfg.mode, "adapter": router.adapter,
-        "has_key": bool(cfg.openai_api_key), "key_hint": _mask_key(cfg.openai_api_key),
-        "base_url": cfg.openai_base_url, "chat_model": cfg.chat_model,
-        "stt_model": cfg.stt_model, "tts_model": cfg.tts_model, "tts_voice": cfg.tts_voice,
-        "live_ready": cfg.mode == "live" and bool(cfg.openai_api_key),
+        "mode": cfg.mode, "adapter": router.adapter, "llm_provider": cfg.llm_provider,
+        "has_key": cfg.llm_ready, "key_hint": _mask_key(cfg.llm_api_key),
+        "base_url": cfg.llm_base_url, "chat_model": cfg.chat_model,
+        "stt_provider": cfg.stt_provider, "stt_model": cfg.stt_model,
+        "tts_model": cfg.tts_model, "tts_voice": cfg.tts_voice,
+        "live_ready": cfg.live_ready,
         "pin_required": bool(os.environ.get("DEMO_ADMIN_PIN")),
     }
 
@@ -274,16 +311,21 @@ async def api_admin_test(request: Request):
         body = await request.json()
     except Exception:
         pass
-    key = (body.get("api_key") or "").strip() or cfg.openai_api_key
-    base = (body.get("base_url") or "").strip() or cfg.openai_base_url
+    key = (body.get("api_key") or "").strip() or cfg.llm_api_key
+    base = (body.get("base_url") or "").strip() or cfg.llm_base_url
     model = (body.get("chat_model") or "").strip() or cfg.chat_model
     if not key:
         return JSONResponse({"ok": False, "error": "No API key entered."})
     try:
+        if cfg.llm_provider == "anthropic":
+            headers = {"x-api-key": key, "anthropic-version": "2023-06-01"}
+            url = base.rstrip("/") + "/v1/models"
+        else:
+            headers = {"Authorization": f"Bearer {key}"}
+            url = base.rstrip("/") + "/models"
         async with httpx.AsyncClient(timeout=15) as client:
             t0 = time.perf_counter()
-            r = await client.get(base.rstrip("/") + "/models",
-                                 headers={"Authorization": f"Bearer {key}"})
+            r = await client.get(url, headers=headers)
             ms = round((time.perf_counter() - t0) * 1000)
         if r.status_code == 200:
             ids = [m.get("id") for m in (r.json().get("data") or [])]
@@ -306,7 +348,7 @@ async def api_admin_config(request: Request):
     mode = str(body.get("mode", cfg.mode)).strip().lower()
     if mode not in ("mock", "live"):
         return JSONResponse({"error": "mode must be 'mock' or 'live'"}, status_code=400)
-    if "api_key" in body:
+    if "api_key" in body and cfg.llm_provider == "openai":
         cfg.openai_api_key = (body.get("api_key") or "").strip() or None
     for key, attr in (("base_url", "openai_base_url"), ("chat_model", "chat_model"),
                       ("stt_model", "stt_model"), ("tts_model", "tts_model"),
@@ -314,18 +356,19 @@ async def api_admin_config(request: Request):
         v = body.get(key)
         if v:
             setattr(cfg, attr, str(v).strip())
-    if mode == "live" and not cfg.openai_api_key:
+    if mode == "live" and not (cfg.llm_ready and cfg.stt_ready):
         return JSONResponse(
-            {"error": "Live mode needs an API key — paste one first."}, status_code=400)
+            {"error": f"Live mode needs configured {cfg.llm_provider} LLM and {cfg.stt_provider} STT keys."}, status_code=400)
     cfg.mode = mode
     router = build_router(cfg)
-    print(f"[demo] admin: mode={cfg.mode} adapter={router.adapter} chat_model={cfg.chat_model}")
+    print(f"[demo] admin: mode={cfg.mode} adapter={router.adapter} llm={cfg.llm_provider}/{cfg.chat_model}")
     broadcast({"type": "mode", "mode": cfg.mode, "adapter": router.adapter})
     return JSONResponse(_admin_status())
 
 
 @app.post("/api/talk")
 async def api_talk(audio: UploadFile = File(...)):
+    global _presentation_turn
     m = scenarios.margaret()
     if cfg.live:
         raw = await audio.read()
@@ -339,10 +382,23 @@ async def api_talk(audio: UploadFile = File(...)):
                                  "Sorry, I didn't catch that. Could you say it again?"})
         return await _route_or_degrade(res.text, m["patient_context"],
                                        m["sensor_data"], "talk", res.text, res.latency_ms)
-    # mock mode: mic capture is real but there's no STT; use a sample utterance
-    sample = scenarios.replays()["1"]["utterance"]
-    return await _route_or_degrade(sample, m["patient_context"], m["sensor_data"],
-                                   "talk(mock)", sample, 0.0)
+    # Presentation mode: advance a transparent, multi-turn scripted patient
+    # conversation.  This is intentionally not presented as microphone STT.
+    # The response still uses the same router/guardrail path as a live turn.
+    turn = scenarios.presentation_turn(_presentation_turn)
+    _presentation_turn += 1
+    response = await _route_or_degrade(turn["utterance"], turn["patient_context"],
+                                       turn["sensor_data"], f"presentation:{turn['id']}",
+                                       turn["utterance"], 0.0)
+    # _route_or_degrade returns a JSONResponse; annotate it for the face without
+    # duplicating routing or leaking its internals into the client.
+    body = json.loads(response.body)
+    next_turn = scenarios.presentation_turn(_presentation_turn)
+    body["presentation"] = {
+        "turn": turn["id"], "next": _presentation_turn % 3 + 1,
+        "next_utterance": next_turn["utterance"],
+    }
+    return JSONResponse(body, status_code=response.status_code)
 
 
 @app.post("/api/type")
@@ -406,14 +462,15 @@ async def api_replay(request: Request):
             followup_meta = {"error": str(e)}
 
     if result.tier in ESCALATION_TIERS:
-        _log_escalation(f"replay:{key}", utterance, result)
+        rec = _log_escalation(f"replay:{key}", utterance, result)
+        broadcast(_reactive_escalation_meta(rec))
     return JSONResponse(_meta(utterance, result, stt_ms=stt_ms, followup=followup_meta))
 
 
 @app.get("/api/tts")
 async def api_tts(text: str):
-    if not cfg.live:
-        return JSONResponse({"error": "tts unavailable in mock mode; use browser speech"},
+    if not cfg.tts_enabled:
+        return JSONResponse({"error": "server TTS is unavailable; use browser speech"},
                             status_code=404)
     async def gen():
         try:
@@ -447,7 +504,10 @@ def _proactive_meta(result, flag) -> dict:
         "spoken_response": result.spoken_response, "tier": result.tier,
         "rule_id": result.rule_id, "evidence": result.rule_evidence,
         "scrubbed_payload": result.scrubbed_payload, "escalate": result.escalate,
-        "adapter": result.adapter, "proactive": True,
+        "source": f"proactive:{flag['rule_id']}", "transcript": "(device monitoring)",
+        "adapter": result.adapter, "model_id": result.model_id,
+        "model_tier": result.model_tier, "guardrail_floor": result.guardrail_floor,
+        "guardrail_triggered": result.guardrail_triggered, "proactive": True,
         "world": {"timeline": WORLD.timeline, "day": WORLD.current_day,
                   "latest": WORLD.latest() or {}},
     }
@@ -523,6 +583,7 @@ async def api_world_cycle():
 
 @app.post("/api/world/reset")
 async def api_world_reset():
+    global _presentation_turn
     # archive escalations.jsonl timestamped, then clear
     log = demo_config.ESCALATIONS_LOG
     archived = None
@@ -530,6 +591,7 @@ async def api_world_reset():
         archived = log.with_name(f"escalations-{int(time.time())}.jsonl")
         log.replace(archived)
     WORLD.reset()
+    _presentation_turn = 0
     WORLD.save(demo_config.MARGARET_STATE)
     broadcast({"type": "world_update", "world": _world_summary()})
     broadcast({"type": "reset"})   # clears Margaret + banners on both screens
