@@ -1,4 +1,4 @@
-# Companion — bounded AI support for home health conversations
+# Ember — bounded AI support for home health conversations
 
 > **All 48 Gate 0 scenarios use synthetic data. No real patient information is included in this repository or its evaluation runs.**
 
